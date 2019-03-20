@@ -1,0 +1,15 @@
+SUB_DEPTH = ../../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+#
+# devExample
+#
+DLLS += devExample
+devExample_TEMPLATE = VBOXR3
+devExample_SOURCES =  ../VirtIO/Virtio.cpp \
+					  devExample.cpp \
+					  devExampleIOPort.cpp
+					  
+devExample_LIBS = $(LIB_RUNTIME) $(LIB_VMM)
+
+include $(FILE_KBUILD_SUB_FOOTER)
