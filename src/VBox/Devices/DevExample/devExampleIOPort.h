@@ -1,7 +1,7 @@
 #ifndef DEVEXAMPLEIOPORT
 #define DEVEXAMPLEIOPORT
 #include <VBox/vmm/pdmdev.h>
-#include "../VirtIO/Virtio.h"
+#include "../VirtIOModern/VirtioModern.h"
  
 DECLCALLBACK(int) devExampleMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, 
                                 uint32_t iRegion, RTGCPHYS GCPhysAddress, 

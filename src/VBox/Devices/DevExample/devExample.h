@@ -2,7 +2,7 @@
 #define DEVEXAMPLE
 
 #include <VBox/vmm/pdmdev.h>
-#include "../VirtIO/Virtio.h"
+#include "../VirtIOModern/VirtioModern.h"
 
 #define DEV_EXAMPLE_NAME_FMT    "devExample%d"
 #define DEV_EXAMPLE_PCI_CLASS   0x00ff //misc device

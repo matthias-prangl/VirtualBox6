@@ -4,7 +4,6 @@
 #include <iprt/uuid.h>
 #include "devExample.h"
 #include "devExampleIOPort.h"
-#include "../VirtIO/Virtio.h"
 
 DECLCALLBACK(void *) devExampleQueryInterface(struct PDMIBASE *pInterface, const char *pszIID) {
     PDEVEXAMPLESTATE pThis = RT_FROM_MEMBER(pInterface, DEVEXAMPLESTATE, VPCI.IBase);

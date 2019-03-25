@@ -6,7 +6,7 @@ include $(KBUILD_PATH)/subheader.kmk
 #
 DLLS += devExample
 devExample_TEMPLATE = VBOXR3
-devExample_SOURCES =  ../VirtIO/Virtio.cpp \
+devExample_SOURCES =  ../VirtIOModern/VirtIOModern.cpp \
 					  devExample.cpp \
 					  devExampleIOPort.cpp
 					  
