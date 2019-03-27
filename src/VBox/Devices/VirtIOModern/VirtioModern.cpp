@@ -507,18 +507,9 @@ int vpciIOPortOut(PPDMDEVINS                pDevIns,
                  * to the minimum if negotiation looks completely
                  * botched, otherwise restrict to advertised features.
                  */
-                if (u32 & VPCI_F_BAD_FEATURE)
-                {
-                    Log(("%s WARNING! Guest failed to negotiate properly (guest=%x)\n",
-                         INSTANCE(pState), u32));
-                    pState->uGuestFeatures = pCallbacks->pfnGetHostMinimalFeatures(pState);
-                }
-                else
-                {
-                    Log(("%s Guest asked for features host does not support! (host=%x guest=%x)\n",
-                         INSTANCE(pState), uHostFeatures, u32));
-                    pState->uGuestFeatures = u32 & uHostFeatures;
-                }
+                Log(("%s Guest asked for features host does not support! (host=%x guest=%x)\n",
+                        INSTANCE(pState), uHostFeatures, u32));
+                pState->uGuestFeatures = u32 & uHostFeatures;
             }
             pCallbacks->pfnSetHostFeatures(pState, pState->uGuestFeatures);
             break;
@@ -775,6 +766,66 @@ int vpciLoadExec(PVPCISTATE pState, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t
 }
 
 /**
+ * Add a VIRTIO PCI capability
+ * 
+ * Performs no overlap check or any other safety mechanism at the moment!
+ * 
+ * @param   pci     Reference to PCI device structure
+ * @param   cap     Reference to virtio_pci_cap structure
+ */
+void vpciAddCapability(PPDMPCIDEV pci, struct virtio_pci_cap *cap) {
+    PDMPciDevSetByte(pci,  cap->cap_next-0x10+0x00, cap->cap_vndr);
+    PDMPciDevSetByte(pci,  cap->cap_next-0x10+0x01, cap->cap_next);
+    PDMPciDevSetByte(pci,  cap->cap_next-0x10+0x02, cap->cap_len);
+    PDMPciDevSetByte(pci,  cap->cap_next-0x10+0x03, cap->cfg_type);
+    PDMPciDevSetByte(pci,  cap->cap_next-0x10+0x04, cap->bar);
+    PDMPciDevSetDWord(pci, cap->cap_next-0x10+0x08, cap->offset);
+    PDMPciDevSetDWord(pci, cap->cap_next-0x10+0x0C, cap->length);
+}
+
+/**
+ * Set and populate the PCI capability list
+ * 
+ * Adds pci capabilities according to VIRTIO standard
+ * 
+ * @param   pci      Reference to PCI device structure
+ * @param   cap_base location of the first capability
+ */
+void vpciSetCapabilityList(PPDMPCIDEV pci, uint8_t cap_base) {
+    PDMPciDevSetStatus(pci, VBOX_PCI_STATUS_CAP_LIST);
+    PDMPciDevSetCapabilityList(pci, cap_base);
+    struct virtio_pci_cap tmp_cap = { 
+        VBOX_PCI_CAP_ID_VNDR,       //cap_vndr
+        cap_base+0x10,              //cap_next
+        sizeof(virtio_pci_cap),     //cap_len
+        VIRTIO_PCI_CAP_COMMON_CFG,  //cfg_type
+        2,                          //bar
+        {0,0,0},                    //padding
+        0x00001000,                     //offset
+        0x00000800,                      //length
+    };
+    vpciAddCapability(pci, &tmp_cap);
+
+    tmp_cap.cap_next = cap_base+0x20;
+    tmp_cap.cfg_type = VIRTIO_PCI_CAP_ISR_CFG;
+    tmp_cap.offset = 0x00001800;
+    tmp_cap.length = 0x00000800;
+    vpciAddCapability(pci, &tmp_cap);
+
+    tmp_cap.cap_next = cap_base+0x30;
+    tmp_cap.cfg_type = VIRTIO_PCI_CAP_DEVICE_CFG;
+    tmp_cap.offset = 0x00002000;
+    tmp_cap.length = 0x00001000;
+    vpciAddCapability(pci, &tmp_cap);
+
+    tmp_cap.cap_next = cap_base+0x40;
+    tmp_cap.cfg_type = VIRTIO_PCI_CAP_NOTIFY_CFG;
+    tmp_cap.offset = 0x00003000;
+    tmp_cap.length = 0x00001000;
+    vpciAddCapability(pci, &tmp_cap);
+}
+
+/**
  * Set PCI configuration space registers.
  *
  * @param   pci          Reference to PCI device structure.
@@ -787,23 +838,19 @@ static DECLCALLBACK(void) vpciConfigure(PDMPCIDEV& pci,
                                         uint16_t uClass)
 {
     /* Configure PCI Device, assume 32-bit mode ******************************/
-    PCIDevSetVendorId(&pci, DEVICE_PCI_VENDOR_ID);
-    PCIDevSetDeviceId(&pci, DEVICE_PCI_BASE_ID + uDeviceId);
-    PDMPciDevSetWord(&pci,  VBOX_PCI_SUBSYSTEM_VENDOR_ID, DEVICE_PCI_SUBSYSTEM_VENDOR_ID);
-    PDMPciDevSetWord(&pci,  VBOX_PCI_SUBSYSTEM_ID, DEVICE_PCI_SUBSYSTEM_BASE_ID + uDeviceId);
+    PDMPciDevSetVendorId(&pci, DEVICE_PCI_VENDOR_ID);
+    PDMPciDevSetDeviceId(&pci, DEVICE_PCI_BASE_ID + uDeviceId);
+    PDMPciDevSetSubSystemVendorId(&pci, DEVICE_PCI_SUBSYSTEM_VENDOR_ID);
+    PDMPciDevSetSubSystemId(&pci, DEVICE_PCI_SUBSYSTEM_BASE_ID + uDeviceId);
+    PDMPciDevSetWord(&pci, VBOX_PCI_CLASS_DEVICE, uClass);
 
-    /* ABI version, must be equal 0 as of 2.6.30 kernel. */
-    PDMPciDevSetByte(&pci,  VBOX_PCI_REVISION_ID,          0x00);
-    /* Ethernet adapter */
-    PDMPciDevSetByte(&pci,  VBOX_PCI_CLASS_PROG,           0x00);
-    PDMPciDevSetWord(&pci,  VBOX_PCI_CLASS_DEVICE,         uClass);
+    PDMPciDevSetRevisionId(&pci, 0x01);
+    PDMPciDevSetClassProg(&pci, 0x00);
     /* Interrupt Pin: INTA# */
-    PDMPciDevSetByte(&pci,  VBOX_PCI_INTERRUPT_PIN,        0x01);
+    PDMPciDevSetInterruptPin(&pci, 0x01);
 
-#ifdef VBOX_WITH_MSI_DEVICES
-    PCIDevSetCapabilityList(&pci, 0x80);
-    PCIDevSetStatus( &pci,  VBOX_PCI_STATUS_CAP_LIST);
-#endif
+    PDMPciDevSetBaseAddress(&pci, 2, false, true, true, 0x00000000);
+    vpciSetCapabilityList(&pci, CAP_BASE);
 }
 
 #ifdef VBOX_WITH_STATISTICS

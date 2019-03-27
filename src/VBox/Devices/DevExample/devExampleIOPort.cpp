@@ -26,10 +26,6 @@ DECLCALLBACK(uint32_t) devExampleIOCb_GetHostFeatures(void *pvState) {
     RT_NOREF(pvState);
     return 0;
 }
-DECLCALLBACK(uint32_t) devExampleIOCb_GetHostMinimalFeatures(void *pvState) {
-    RT_NOREF(pvState);
-    return 0;
-}
 DECLCALLBACK(void) devExampleIOCb_SetHostFeatures(void *pvState, uint32_t fFeatures) {
     RT_NOREF(pvState, fFeatures);
     return;

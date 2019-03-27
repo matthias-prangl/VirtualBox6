@@ -11,7 +11,6 @@ PDMBOTHCBDECL(int) devExampleIOPortIn(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
 PDMBOTHCBDECL(int) devExampleIOPortOut(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb);
 
 DECLCALLBACK(uint32_t) devExampleIOCb_GetHostFeatures(void *pvState);
-DECLCALLBACK(uint32_t) devExampleIOCb_GetHostMinimalFeatures(void *pvState);
 DECLCALLBACK(void) devExampleIOCb_SetHostFeatures(void *pvState, uint32_t fFeatures);
 DECLCALLBACK(int) devExampleIOCb_GetConfig(void *pvState, uint32_t offCfg, uint32_t cb, void *data);
 DECLCALLBACK(int) devExampleIOCb_SetConfig(void *pvState, uint32_t offCfg, uint32_t cb, void *data);
@@ -22,7 +21,6 @@ DECLCALLBACK(void) devExampleIOCb_Ready(void *pvState);
 
 const VPCIIOCALLBACKS g_devExampleIOCbs = {
     devExampleIOCb_GetHostFeatures,
-    devExampleIOCb_GetHostMinimalFeatures,
     devExampleIOCb_SetHostFeatures,
     devExampleIOCb_GetConfig,
     devExampleIOCb_SetConfig,
