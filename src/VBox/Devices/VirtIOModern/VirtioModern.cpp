@@ -766,24 +766,6 @@ int vpciLoadExec(PVPCISTATE pState, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t
 }
 
 /**
- * Add a VIRTIO PCI capability
- * 
- * Performs no overlap check or any other safety mechanism at the moment!
- * 
- * @param   pci     Reference to PCI device structure
- * @param   cap     Reference to virtio_pci_cap structure
- */
-void vpciAddCapability(PPDMPCIDEV pci, struct virtio_pci_cap *cap) {
-    PDMPciDevSetByte(pci,  cap->cap_next-0x10+0x00, cap->cap_vndr);
-    PDMPciDevSetByte(pci,  cap->cap_next-0x10+0x01, cap->cap_next);
-    PDMPciDevSetByte(pci,  cap->cap_next-0x10+0x02, cap->cap_len);
-    PDMPciDevSetByte(pci,  cap->cap_next-0x10+0x03, cap->cfg_type);
-    PDMPciDevSetByte(pci,  cap->cap_next-0x10+0x04, cap->bar);
-    PDMPciDevSetDWord(pci, cap->cap_next-0x10+0x08, cap->offset);
-    PDMPciDevSetDWord(pci, cap->cap_next-0x10+0x0C, cap->length);
-}
-
-/**
  * Set and populate the PCI capability list
  * 
  * Adds pci capabilities according to VIRTIO standard
@@ -801,28 +783,28 @@ void vpciSetCapabilityList(PPDMPCIDEV pci, uint8_t cap_base) {
         VIRTIO_PCI_CAP_COMMON_CFG,  //cfg_type
         2,                          //bar
         {0,0,0},                    //padding
-        0x00001000,                     //offset
-        0x00000800,                      //length
+        RT_H2LE_U32(0x00001000),    //offset
+        RT_H2LE_U32(0x00000800),    //length
     };
-    vpciAddCapability(pci, &tmp_cap);
+    memcpy(&pci->abConfig[0x40], &tmp_cap, sizeof(tmp_cap));
 
     tmp_cap.cap_next = cap_base+0x20;
     tmp_cap.cfg_type = VIRTIO_PCI_CAP_ISR_CFG;
-    tmp_cap.offset = 0x00001800;
-    tmp_cap.length = 0x00000800;
-    vpciAddCapability(pci, &tmp_cap);
+    tmp_cap.offset = RT_H2LE_U32(0x00001800);
+    tmp_cap.length = RT_H2LE_U32(0x00000800);
+    memcpy(&pci->abConfig[0x50], &tmp_cap, sizeof(tmp_cap));
 
     tmp_cap.cap_next = cap_base+0x30;
     tmp_cap.cfg_type = VIRTIO_PCI_CAP_DEVICE_CFG;
-    tmp_cap.offset = 0x00002000;
-    tmp_cap.length = 0x00001000;
-    vpciAddCapability(pci, &tmp_cap);
+    tmp_cap.offset = RT_H2LE_U32(0x00002000);
+    tmp_cap.length = RT_H2LE_U32(0x00001000);
+    memcpy(&pci->abConfig[0x60], &tmp_cap, sizeof(tmp_cap));
 
-    tmp_cap.cap_next = cap_base+0x40;
+    tmp_cap.cap_next = 0x0;
     tmp_cap.cfg_type = VIRTIO_PCI_CAP_NOTIFY_CFG;
-    tmp_cap.offset = 0x00003000;
-    tmp_cap.length = 0x00001000;
-    vpciAddCapability(pci, &tmp_cap);
+    tmp_cap.offset = RT_H2LE_U32(0x00003000);
+    tmp_cap.length = RT_H2LE_U32(0x00001000);
+    memcpy(&pci->abConfig[0x70], &tmp_cap, sizeof(tmp_cap));
 }
 
 /**

@@ -298,7 +298,6 @@ typedef struct VPCIIOCALLBACKS
 typedef const VPCIIOCALLBACKS *PCVPCIIOCALLBACKS;
 /** @} */
 
-void vpciAddCapability(PPDMPCIDEV pci, struct virtio_pci_cap *cap);
 void vpciSetCapabilityList(PPDMPCIDEV pci, uint8_t cap_base);
 
 
