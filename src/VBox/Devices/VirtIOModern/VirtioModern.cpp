@@ -849,6 +849,70 @@ static const char *vpciCounter(const char *pszDevFmt,
 }
 #endif
 
+PDMBOTHCBDECL(int) virtioModernCommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+{
+    RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
+    return VINF_SUCCESS;
+}
+PDMBOTHCBDECL(int) virtioModernCommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+{
+    RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
+    return VINF_SUCCESS;
+}
+PDMBOTHCBDECL(int) virtioModernISRWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+{
+    RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
+    return VINF_SUCCESS;
+}
+PDMBOTHCBDECL(int) virtioModernISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+{
+    RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
+    return VINF_SUCCESS;
+}
+PDMBOTHCBDECL(int) virtioModernDeviceCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+{
+    RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
+    return VINF_SUCCESS;
+}
+PDMBOTHCBDECL(int) virtioModernDeviceCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+{
+    RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
+    return VINF_SUCCESS;
+}
+PDMBOTHCBDECL(int) virtioModernNotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+{
+    RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
+    return VINF_SUCCESS;
+}
+PDMBOTHCBDECL(int) virtioModernNotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+{
+    RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
+    return VINF_SUCCESS;
+}
+
+DECLCALLBACK(int) virtioModernMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+                                RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType) {
+    VPCISTATE *pThis = PDMINS_2_DATA(pDevIns, VPCISTATE *);
+    
+    int rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress+0x0000, 0x1000, NULL, 0,
+                                   virtioModernCommonCfgWrite, virtioModernCommonCfgRead, "VirtioPCICommonCfg");
+    Assert(rc == VINF_SUCCESS);
+
+    rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress+0x1000, 0x1000, NULL, 0,
+                                   virtioModernISRWrite, virtioModernISRRead, "VirtioPCIISR");
+    Assert(rc == VINF_SUCCESS);
+
+    rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress+0x2000, 0x1000, NULL, 0,
+                                   virtioModernDeviceCfgWrite, virtioModernDeviceCfgRead, "VirtioPCIDeviceCfg");
+    Assert(rc == VINF_SUCCESS);
+    
+    rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress+0x3000, 0x1000, NULL, 0,
+                                   virtioModernNotifyWrite, virtioModernNotifyRead, "VirtioPCINotify");
+    Assert(rc == VINF_SUCCESS);
+
+    return rc;
+}
+
 /// @todo header
 int vpciConstruct(PPDMDEVINS pDevIns, VPCISTATE *pState,
                   int iInstance, const char *pcszNameFmt,
@@ -874,7 +938,10 @@ int vpciConstruct(PPDMDEVINS pDevIns, VPCISTATE *pState,
     rc = PDMDevHlpPCIRegister(pDevIns, &pState->pciDevice);
     if (RT_FAILURE(rc))
         return rc;
-
+    /* Register required MMIO Regions */
+    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 2, 0x0000000000004000, PCI_ADDRESS_SPACE_MEM_PREFETCH, virtioModernMap);
+    if (RT_FAILURE(rc))
+        return rc;
 #ifdef VBOX_WITH_MSI_DEVICES
 #if 0
     {
