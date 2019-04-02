@@ -25,7 +25,7 @@
 #include <iprt/param.h>
 #include <iprt/uuid.h>
 #include <VBox/vmm/pdmdev.h>
-#include "VirtioModern.h"
+#include "virtioPCI.h"
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 
@@ -37,7 +37,7 @@
  * @param   pci      Reference to PCI device structure
  * @param   cap_base location of the first capability
  */
-void vpciSetCapabilityList(PPDMPCIDEV pci, uint8_t cap_base) {
+void virtioPCISetCapabilityList(PPDMPCIDEV pci, uint8_t cap_base) {
     PDMPciDevSetStatus(pci, VBOX_PCI_STATUS_CAP_LIST);
     PDMPciDevSetCapabilityList(pci, cap_base);
     struct virtio_pci_cap tmp_cap = { 
@@ -79,7 +79,7 @@ void vpciSetCapabilityList(PPDMPCIDEV pci, uint8_t cap_base) {
  * @param   uClass       Class of PCI device (network, etc)
  * @thread  EMT
  */
-static DECLCALLBACK(void) vpciConfigure(PDMPCIDEV& pci,
+DECLCALLBACK(void) virtioPCIConfigure(PDMPCIDEV& pci,
                                         uint16_t uDeviceId,
                                         uint16_t uClass)
 {
@@ -98,36 +98,36 @@ static DECLCALLBACK(void) vpciConfigure(PDMPCIDEV& pci,
     PDMPciDevSetBaseAddress(&pci, 2, false, true, true, 0x00000000);
 }
 
-PDMBOTHCBDECL(int) virtioModernISRWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+DECLCALLBACK(int) virtioModernISRWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
     return VINF_SUCCESS;
 }
-PDMBOTHCBDECL(int) virtioModernISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+DECLCALLBACK(int) virtioModernISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
-    VPCISTATE *pState = PDMINS_2_DATA(pDevIns, VPCISTATE*);
+    VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
     RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
     return VINF_SUCCESS;
 }
-PDMBOTHCBDECL(int) virtioModernDeviceCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+DECLCALLBACK(int) virtioModernDeviceCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
-    VPCISTATE *pState = PDMINS_2_DATA(pDevIns, VPCISTATE*);
+    VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
     RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
     return VINF_SUCCESS;
 }
-PDMBOTHCBDECL(int) virtioModernDeviceCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+DECLCALLBACK(int) virtioModernDeviceCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
-    VPCISTATE *pState = PDMINS_2_DATA(pDevIns, VPCISTATE*);
+    VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
     RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
     return VINF_SUCCESS;
 }
-PDMBOTHCBDECL(int) virtioModernNotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+DECLCALLBACK(int) virtioModernNotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
-    VPCISTATE *pState = PDMINS_2_DATA(pDevIns, VPCISTATE*);
+    VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
     RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
     return VINF_SUCCESS;
 }
-PDMBOTHCBDECL(int) virtioModernNotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+DECLCALLBACK(int) virtioModernNotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
     RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
     return VINF_SUCCESS;
@@ -135,7 +135,7 @@ PDMBOTHCBDECL(int) virtioModernNotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGC
 
 DECLCALLBACK(int) virtioModernMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
                                 RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType) {
-    VPCISTATE *pThis = PDMINS_2_DATA(pDevIns, VPCISTATE *);
+    VirtioPCIState *pThis = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
     
     int rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress+0x0000, 0x1000, NULL, 0,
                                    virtioModernCommonCfgWrite, virtioModernCommonCfgRead, "VirtioPCICommonCfg");
@@ -157,7 +157,7 @@ DECLCALLBACK(int) virtioModernMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32
 }
 
 /// @todo header
-int vpciConstruct(PPDMDEVINS pDevIns, VPCISTATE *pState,
+int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIState *pState,
                   int iInstance, const char *pcszNameFmt,
                   uint16_t uDeviceId, uint16_t uClass,
                   uint32_t nQueues)
@@ -176,8 +176,8 @@ int vpciConstruct(PPDMDEVINS pDevIns, VPCISTATE *pState,
         return rc;
 
     /* Set PCI config registers */
-    vpciConfigure(pState->pciDevice, uDeviceId, uClass);
-    vpciSetCapabilityList(&pState->pciDevice, CAP_BASE);
+    virtioPCIConfigure(pState->pciDevice, uDeviceId, uClass);
+    virtioPCISetCapabilityList(&pState->pciDevice, CAP_BASE);
     /* Register PCI device */
     rc = PDMDevHlpPCIRegister(pDevIns, &pState->pciDevice);
     if (RT_FAILURE(rc))
@@ -206,7 +206,7 @@ int vpciConstruct(PPDMDEVINS pDevIns, VPCISTATE *pState,
  * @returns VBox status code.
  * @param   pState      The device state structure.
  */
-int vpciDestruct(VPCISTATE* pState)
+int virtioPCIDestruct(VirtioPCIState* pState)
 {
     Log(("%s Destroying PCI instance\n", pState->szInstance));
 
@@ -216,9 +216,9 @@ int vpciDestruct(VPCISTATE* pState)
     return VINF_SUCCESS;
 }
 
-PDMBOTHCBDECL(int) virtioModernCommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned size)
+DECLCALLBACK(int) virtioModernCommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned size)
 {
-    VPCISTATE *pState = PDMINS_2_DATA(pDevIns, VPCISTATE*);
+    VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
     uint8_t cmd = (uint8_t) GCPhysAddr;
     uint64_t write_data = *(uint64_t *)pv;
     Assert((size == 1) | (size == 2) | (size == 4));
@@ -272,9 +272,9 @@ PDMBOTHCBDECL(int) virtioModernCommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, 
     RT_NOREF(pvUser);
     return VINF_SUCCESS;
 }
-PDMBOTHCBDECL(int) virtioModernCommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned size)
+DECLCALLBACK(int) virtioModernCommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned size)
 {
-    VPCISTATE *pState = PDMINS_2_DATA(pDevIns, VPCISTATE*);
+    VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
     uint8_t cmd = (uint8_t) GCPhysAddr;
     uint64_t read_data = *(uint64_t *)pv;
     Assert((size == 1) | (size == 2) | (size == 4));
@@ -336,7 +336,7 @@ PDMBOTHCBDECL(int) virtioModernCommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, R
             break;
     }
     RT_NOREF(pState, pvUser, GCPhysAddr, pv);
-    return read_data;
+    return VINF_SUCCESS;
 }
 
 #endif /* VBOX_DEVICE_STRUCT_TESTCASE */
