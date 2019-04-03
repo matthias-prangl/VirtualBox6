@@ -1,4 +1,4 @@
-/* $Id: VirtioModern.cpp $ */
+/* $Id: virtioPCI.cpp $ */
 /** @file
  * Virtio - Virtio Common Functions (VRing, VQueue, Virtio PCI)
  * Based on Virtio.cpp
@@ -26,6 +26,7 @@
 #include <iprt/uuid.h>
 #include <VBox/vmm/pdmdev.h>
 #include "virtioPCI.h"
+#include "virtio.h"
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 
@@ -98,59 +99,59 @@ DECLCALLBACK(void) virtioPCIConfigure(PDMPCIDEV& pci,
     PDMPciDevSetBaseAddress(&pci, 2, false, true, true, 0x00000000);
 }
 
-DECLCALLBACK(int) virtioModernISRWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+DECLCALLBACK(int) virtioPCIISRWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
     return VINF_SUCCESS;
 }
-DECLCALLBACK(int) virtioModernISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+DECLCALLBACK(int) virtioPCIISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
     VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
     RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
     return VINF_SUCCESS;
 }
-DECLCALLBACK(int) virtioModernDeviceCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+DECLCALLBACK(int) virtioPCIDeviceCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
     RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
     return VINF_SUCCESS;
 }
-DECLCALLBACK(int) virtioModernDeviceCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+DECLCALLBACK(int) virtioPCIDeviceCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
     VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
     RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
     return VINF_SUCCESS;
 }
-DECLCALLBACK(int) virtioModernNotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+DECLCALLBACK(int) virtioPCINotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
     RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
     return VINF_SUCCESS;
 }
-DECLCALLBACK(int) virtioModernNotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+DECLCALLBACK(int) virtioPCINotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
     RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
     return VINF_SUCCESS;
 }
 
-DECLCALLBACK(int) virtioModernMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+DECLCALLBACK(int) virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
                                 RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType) {
     VirtioPCIState *pThis = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
     
     int rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress+0x0000, 0x1000, NULL, 0,
-                                   virtioModernCommonCfgWrite, virtioModernCommonCfgRead, "VirtioPCICommonCfg");
+                                   virtioPCICommonCfgWrite, virtioPCICommonCfgRead, "VirtioPCICommonCfg");
     Assert(rc == VINF_SUCCESS);
 
     rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress+0x1000, 0x1000, NULL, 0,
-                                   virtioModernISRWrite, virtioModernISRRead, "VirtioPCIISR");
+                                   virtioPCIISRWrite, virtioPCIISRRead, "VirtioPCIISR");
     Assert(rc == VINF_SUCCESS);
 
     rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress+0x2000, 0x1000, NULL, 0,
-                                   virtioModernDeviceCfgWrite, virtioModernDeviceCfgRead, "VirtioPCIDeviceCfg");
+                                   virtioPCIDeviceCfgWrite, virtioPCIDeviceCfgRead, "VirtioPCIDeviceCfg");
     Assert(rc == VINF_SUCCESS);
     
     rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress+0x3000, 0x1000, NULL, 0,
-                                   virtioModernNotifyWrite, virtioModernNotifyRead, "VirtioPCINotify");
+                                   virtioPCINotifyWrite, virtioPCINotifyRead, "VirtioPCINotify");
     Assert(rc == VINF_SUCCESS);
     RT_NOREF(enmType, cb, iRegion, pPciDev, pThis);
     return rc;
@@ -183,7 +184,7 @@ int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIState *pState,
     if (RT_FAILURE(rc))
         return rc;
     /* Register required MMIO Regions */
-    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 2, 0x0000000000004000, PCI_ADDRESS_SPACE_MEM_PREFETCH, virtioModernMap);
+    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 2, 0x0000000000004000, PCI_ADDRESS_SPACE_MEM_PREFETCH, virtioPCIMap);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -216,9 +217,10 @@ int virtioPCIDestruct(VirtioPCIState* pState)
     return VINF_SUCCESS;
 }
 
-DECLCALLBACK(int) virtioModernCommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned size)
+DECLCALLBACK(int) virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned size)
 {
     VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
+    VirtioDevice *vdev = pState->vdev;
     uint8_t cmd = (uint8_t) GCPhysAddr;
     uint64_t write_data = *(uint64_t *)pv;
     Assert((size == 1) | (size == 2) | (size == 4));
@@ -272,9 +274,11 @@ DECLCALLBACK(int) virtioModernCommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, R
     RT_NOREF(pvUser);
     return VINF_SUCCESS;
 }
-DECLCALLBACK(int) virtioModernCommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned size)
+
+DECLCALLBACK(int) virtioPCICommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned size)
 {
     VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
+    VirtioDevice *vdev = pState->vdev;
     uint8_t cmd = (uint8_t) GCPhysAddr;
     uint64_t read_data = *(uint64_t *)pv;
     Assert((size == 1) | (size == 2) | (size == 4));
@@ -306,7 +310,7 @@ DECLCALLBACK(int) virtioModernCommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RT
             read_data = pState->queue_select;
             break;
         case VIRTIO_PCI_COMMON_Q_SIZE: 
-            read_data = pState->vqs[pState->queue_select].size;
+            read_data = virtio_queue_get_num(vdev, vdev->queue_sel);
             break;
         case VIRTIO_PCI_COMMON_Q_MSIX: 
             Assert(0); break; //MSIX not supported. What to do?

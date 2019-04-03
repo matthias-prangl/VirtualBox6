@@ -1,6 +1,6 @@
 /* $Id: Virtio.h $ */
 /** @file
- * VirtioModern.h - Virtio Declarations
+ * virtioPCI.h - Virtio Declarations
  * Based on Virtio.h
  */
 
@@ -16,8 +16,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_VirtIOModern_VirtioModern_h
-#define VBOX_INCLUDED_SRC_VirtIOModern_VirtioModern_h
+#ifndef VBOX_INCLUDED_SRC_VirtIOModern_virtioPCI_h
+#define VBOX_INCLUDED_SRC_VirtIOModern_virtioPCI_h
 #ifndef RT_WITHOUT_PRAGMA_ONCE
 # pragma once
 #endif
@@ -75,19 +75,21 @@ struct virtio_pci_cap {
     uint32_t length; /* Length of the structure, in bytes. */
 };
 
-typedef struct VPCIQueue {
+typedef struct VirtioPCIQueue {
     uint16_t size;
     bool enabled;
     uint32_t desc[2];
     uint32_t avail[2];
     uint32_t used[2];
-} VPCIQueue;
+} VirtioPCIQueue;
+
+typedef struct VirtioDevice VirtioDevice;
 
 /**
  * The core (/common) state of the VirtIO PCI device
  *
  */
-typedef struct VirtioPCIState_st
+typedef struct VirtioPCIState
 {
     PDMCRITSECT            cs;      /**< Critical section - what is it protecting? */
     /* Read-only part, never changes after initialization. */
@@ -127,10 +129,11 @@ typedef struct VirtioPCIState_st
     uint16_t queue_select;
     uint16_t queue_msix_vector;
     uint16_t queue_notify_off;
-    VPCIQueue vqs[VIRTIO_QUEUE_MAX];
+    VirtioPCIQueue vqs[VIRTIO_QUEUE_MAX];
+    VirtioDevice *vdev;
 } VirtioPCIState;
 
-DECLCALLBACK(int) virtioModernMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+DECLCALLBACK(int) virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
                                   RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType);
 
 DECLCALLBACK(void) virtioPCIConfigure(PDMPCIDEV& pci, uint16_t uDeviceId, uint16_t uClass);
@@ -141,13 +144,13 @@ int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIState *pState, int iInstance
 int   virtioPCIDestruct(VirtioPCIState* pState);
 
 
-DECLCALLBACK(int) virtioModernCommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
-DECLCALLBACK(int) virtioModernCommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-DECLCALLBACK(int) virtioModernISRWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
-DECLCALLBACK(int) virtioModernISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-DECLCALLBACK(int) virtioModernDeviceCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
-DECLCALLBACK(int) virtioModernDeviceCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
-DECLCALLBACK(int) virtioModernNotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
-DECLCALLBACK(int) virtioModernNotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
+DECLCALLBACK(int) virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
+DECLCALLBACK(int) virtioPCICommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
+DECLCALLBACK(int) virtioPCIISRWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
+DECLCALLBACK(int) virtioPCIISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
+DECLCALLBACK(int) virtioPCIDeviceCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
+DECLCALLBACK(int) virtioPCIDeviceCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
+DECLCALLBACK(int) virtioPCINotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
+DECLCALLBACK(int) virtioPCINotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
 
-#endif /* !VBOX_INCLUDED_SRC_VirtIOModern_VirtioModern_h */
+#endif /* !VBOX_INCLUDED_SRC_VirtIOModern_VirtioPCI_h */
