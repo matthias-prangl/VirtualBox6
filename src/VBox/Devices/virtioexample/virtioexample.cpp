@@ -3,26 +3,42 @@
 #include <iprt/mem.h>
 #include <iprt/uuid.h>
 #include "virtioexample.h"
+#include "../VirtIOModern/virtioPCI.h"
+
+void handle_q1(VirtioDevice *vdev, VirtQueue *vq) {
+    RT_NOREF(vq, vdev);
+    return;
+}
+
+void handle_q2(VirtioDevice *vdev, VirtQueue *vq) {
+    RT_NOREF(vq, vdev);
+    return;
+}
 
 DECLCALLBACK(int) virtioexampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
-    RT_NOREF(pCfg);
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
-    PvirtioexampleSTATE pThis = PDMINS_2_DATA(pDevIns, PvirtioexampleSTATE);
-    
+    VirtioexampleState *pThis = PDMINS_2_DATA(pDevIns, VirtioexampleState *);
+    VirtioPCIState *pciDev = &pThis->vpci;
+    VirtioDevice *vdev = &pThis->vdev;
+    vdev->pciDev = pciDev;
+    pciDev->vdev = vdev;
+
     int rc = PDMDevHlpSetDeviceCritSect(pDevIns, PDMDevHlpCritSectGetNop(pDevIns));
     AssertRCReturn(rc, rc);
-
-    rc = virtioPCIConstruct(pDevIns, &pThis->VPCI, iInstance, 
+    rc = virtioPCIConstruct(pDevIns, pciDev, iInstance, 
                        VIRTIOEXAMPLE_NAME_FMT, VIRTIOEXAMPLE_ID,
                        VIRTIOEXAMPLE_PCI_CLASS, VIRTIOEXAMPLE_N_QUEUES);
-
-    if(rc == VERR_PDM_NO_ATTACHED_DRIVER) {
+    // Last call fails because there is no LUN, ignore for the time being
+    if(rc != VINF_SUCCESS)
         rc = VINF_SUCCESS;
-    }
 
-    if(RT_FAILURE(rc)) {
-        return rc; //... break point
-    }
+    pThis->vdev.vq = (VirtQueue *)calloc(VIRTIO_QUEUE_MAX, sizeof(VirtQueue));
+    Assert(pThis->vdev.vq != NULL);
+
+    pThis->vq1 = virtio_add_queue(&pThis->vdev, 256, &handle_q1);
+    pThis->vq2 = virtio_add_queue(&pThis->vdev, 16, &handle_q2);
+
+    RT_NOREF(pCfg);
     return rc;
 }
 
