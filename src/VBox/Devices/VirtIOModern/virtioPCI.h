@@ -76,7 +76,7 @@ struct virtio_pci_cap {
 };
 
 typedef struct VirtioPCIQueue {
-    uint16_t size;
+    uint16_t num;
     bool enabled;
     uint32_t desc[2];
     uint32_t avail[2];
@@ -120,7 +120,7 @@ typedef struct VirtioPCIState
     uint32_t device_feature_select;
     uint32_t device_feature;
     uint32_t driver_feature_select;
-    uint32_t driver_feature;
+    uint32_t driver_features[2];
     uint16_t msix_config;
     uint16_t num_queues;
     uint8_t device_status;
@@ -141,7 +141,8 @@ void virtioPCISetCapabilityList(PPDMPCIDEV pci, uint8_t cap_base);
 
 int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIState *pState, int iInstance, const char *pcszNameFmt, 
                   uint16_t uDeviceId, uint16_t uClass, uint32_t nQueues);
-int   virtioPCIDestruct(VirtioPCIState* pState);
+int virtioPCIDestruct(VirtioPCIState *pState);
+void virtioPCIReset(VirtioPCIState *pState);
 
 
 DECLCALLBACK(int) virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);

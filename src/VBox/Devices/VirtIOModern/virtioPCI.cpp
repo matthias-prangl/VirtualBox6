@@ -157,6 +157,19 @@ DECLCALLBACK(int) virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t 
     return rc;
 }
 
+void virtioPCIReset(VirtioPCIState *pState) {
+    VirtioDevice *vdev = pState->vdev;
+
+    for(int i = 0; i < VIRTIO_QUEUE_MAX; i++) {
+        pState->vqs[i].enabled = 0;
+        pState->vqs[i].num = 0;
+        pState->vqs[i].desc[0] = pState->vqs[i].desc[1] = 0;
+        pState->vqs[i].avail[0] = pState->vqs[i].avail[1] = 0;
+        pState->vqs[i].used[0] = pState->vqs[i].used[1] = 0;
+    }
+    vdev->status = 0x00;
+}
+
 /// @todo header
 int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIState *pState,
                   int iInstance, const char *pcszNameFmt,
@@ -190,11 +203,12 @@ int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIState *pState,
 
     /* Status driver */
     PPDMIBASE pBase;
+    pState->num_queues = nQueues;
+    virtio_add_feature(&pState->vdev->host_features, VIRTIO_F_VERSION_1);
     rc = PDMDevHlpDriverAttach(pDevIns, PDM_STATUS_LUN, &pState->IBase, &pBase, "Status Port");
+    
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to attach the status LUN"));
-
-    pState->num_queues = nQueues;
 
     return rc;
 }
@@ -226,48 +240,56 @@ DECLCALLBACK(int) virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGC
     Assert((size == 1) | (size == 2) | (size == 4));
     switch(cmd) {
         case VIRTIO_PCI_COMMON_DFSELECT: 
-            pState->device_feature_select = (uint32_t) write_data;
+            pState->device_feature_select = write_data;
             break;
-        case VIRTIO_PCI_COMMON_GFSELECT: 
-            pState->driver_feature_select = (uint32_t) write_data;
+        case VIRTIO_PCI_COMMON_GFSELECT:
+            pState->driver_feature_select = write_data;
             break;
         case VIRTIO_PCI_COMMON_GF: 
-            pState->driver_feature = (uint32_t) write_data;
+            if(pState->driver_feature_select <= 1) {
+                pState->driver_features[pState->driver_feature_select] = write_data;
+                virtio_set_features(vdev,
+                                    (((uint64_t)pState->driver_features[1]) << 32) |
+                                    pState->driver_features[0]);
+            }
             break;
         case VIRTIO_PCI_COMMON_MSIX: 
-            Assert(0); break; //MSIX not supported. What to do?
+            break; //MSIX not supported. What to do?
         case VIRTIO_PCI_COMMON_STATUS: 
-            pState->device_status = (uint8_t) write_data;
+            virtio_set_status(vdev, write_data & 0xFF);
+            if (vdev->status == 0)
+                virtioPCIReset(pState);
             break;
         case VIRTIO_PCI_COMMON_Q_SELECT: 
-            pState->queue_select = (uint16_t) write_data;
+            pState->queue_select = write_data;
             break;
         case VIRTIO_PCI_COMMON_Q_SIZE: 
-            pState->vqs[pState->queue_select].size = (uint16_t) write_data;
+            pState->vqs[pState->queue_select].num = write_data;
             break;
         case VIRTIO_PCI_COMMON_Q_MSIX: 
-            Assert(0); break; //MSIX not supported. What to do?
-            break;
+            break; //MSIX not supported. What to do?
         case VIRTIO_PCI_COMMON_Q_ENABLE: 
-            pState->vqs[pState->queue_select].enabled = write_data & 0x00000001;
+            virtio_queue_set_num(vdev, vdev->queue_select, pState->vqs[vdev->queue_select].num);
+            //TODO: update VRINGs
+            pState->vqs[vdev->queue_select].enabled = 1;
             break;
         case VIRTIO_PCI_COMMON_Q_DESCLO: 
-            pState->vqs[pState->queue_select].desc[0] = (uint32_t) write_data;
+            pState->vqs[pState->queue_select].desc[0] = write_data;
             break;
         case VIRTIO_PCI_COMMON_Q_DESCHI: 
-            pState->vqs[pState->queue_select].desc[1] = (uint32_t) write_data;
+            pState->vqs[pState->queue_select].desc[1] = write_data;
             break;
         case VIRTIO_PCI_COMMON_Q_AVAILLO: 
-            pState->vqs[pState->queue_select].avail[0] = (uint32_t) write_data;
+            pState->vqs[pState->queue_select].avail[0] = write_data;
             break;
         case VIRTIO_PCI_COMMON_Q_AVAILHI: 
-            pState->vqs[pState->queue_select].avail[1] = (uint32_t) write_data;
+            pState->vqs[pState->queue_select].avail[1] = write_data;
             break;
         case VIRTIO_PCI_COMMON_Q_USEDLO: 
-            pState->vqs[pState->queue_select].used[0] = (uint32_t) write_data;
+            pState->vqs[pState->queue_select].used[0] = write_data;
             break;
         case VIRTIO_PCI_COMMON_Q_USEDHI: 
-            pState->vqs[pState->queue_select].used[1] = (uint32_t) write_data;
+            pState->vqs[pState->queue_select].used[1] = write_data;
             break;
     }
 
@@ -280,66 +302,75 @@ DECLCALLBACK(int) virtioPCICommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCP
     VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState*);
     VirtioDevice *vdev = pState->vdev;
     uint8_t cmd = (uint8_t) GCPhysAddr;
-    uint64_t read_data = *(uint64_t *)pv;
+    uint64_t *read_data = (uint64_t *) pv;
+
     Assert((size == 1) | (size == 2) | (size == 4));
     switch(cmd) {
         case VIRTIO_PCI_COMMON_DFSELECT: 
-            read_data = pState->device_feature_select;
+            *read_data = pState->device_feature_select;
             break;
         case VIRTIO_PCI_COMMON_DF:
-            read_data = pState->device_feature;
+            if(pState->device_feature_select <= 1)
+                *read_data = vdev->host_features >> (32 * pState->device_feature_select);
             break;
         case VIRTIO_PCI_COMMON_GFSELECT: 
-            read_data = pState->driver_feature_select;
+            *read_data = pState->driver_feature_select;
             break;
         case VIRTIO_PCI_COMMON_GF: 
-            read_data = pState->driver_feature;
+            if(pState->driver_feature_select <= 1)
+                *read_data = pState->driver_features[pState->driver_feature_select];
             break;
         case VIRTIO_PCI_COMMON_MSIX: 
-            Assert(0); break; //MSIX not supported. What to do?
+            *read_data = 0; break; //MSIX not supported. What to do?
         case VIRTIO_PCI_COMMON_NUMQ:
-            read_data = pState->num_queues;
+            for(int i = 0; i < 1024; i++) {
+                if(virtio_queue_get_num(vdev, i)) {
+                    *read_data = i + 1;
+                }
+            }
             break;
         case VIRTIO_PCI_COMMON_STATUS: 
-            read_data = pState->device_status;
+            *read_data = vdev->status;
             break;
         case VIRTIO_PCI_COMMON_CFGGENERATION: 
-            read_data = pState->config_generation;
+            *read_data = vdev->generation;
             break;
         case VIRTIO_PCI_COMMON_Q_SELECT: 
-            read_data = pState->queue_select;
+            *read_data = vdev->queue_select;
             break;
         case VIRTIO_PCI_COMMON_Q_SIZE: 
-            read_data = virtio_queue_get_num(vdev, vdev->queue_sel);
+            *read_data = virtio_queue_get_num(vdev, vdev->queue_select);
             break;
         case VIRTIO_PCI_COMMON_Q_MSIX: 
-            Assert(0); break; //MSIX not supported. What to do?
+            *read_data = 0; break; //MSIX not supported. What to do?
         case VIRTIO_PCI_COMMON_Q_ENABLE: 
-            read_data = pState->vqs[pState->queue_select].enabled;
+            *read_data = pState->vqs[vdev->queue_select].enabled;
             break;
         case VIRTIO_PCI_COMMON_Q_NOFF:
-            read_data = pState->queue_select;
+            *read_data = vdev->queue_select;
             break; 
         case VIRTIO_PCI_COMMON_Q_DESCLO: 
-            read_data = pState->vqs[pState->queue_select].desc[0];
+            *read_data = pState->vqs[vdev->queue_select].desc[0];
             break;
         case VIRTIO_PCI_COMMON_Q_DESCHI: 
-            read_data = pState->vqs[pState->queue_select].desc[1];
+            *read_data = pState->vqs[vdev->queue_select].desc[1];
             break;
         case VIRTIO_PCI_COMMON_Q_AVAILLO: 
-            read_data = pState->vqs[pState->queue_select].avail[0];
+            *read_data = pState->vqs[vdev->queue_select].avail[0];
             break;
         case VIRTIO_PCI_COMMON_Q_AVAILHI: 
-            read_data = pState->vqs[pState->queue_select].avail[1];
+            *read_data = pState->vqs[vdev->queue_select].avail[1];
             break;
         case VIRTIO_PCI_COMMON_Q_USEDLO: 
-            read_data = pState->vqs[pState->queue_select].used[0];
+            *read_data = pState->vqs[vdev->queue_select].used[0];
             break;
         case VIRTIO_PCI_COMMON_Q_USEDHI: 
-            read_data = pState->vqs[pState->queue_select].used[1];
+            *read_data = pState->vqs[vdev->queue_select].used[1];
             break;
+        default: 
+            *read_data = 0;
     }
-    RT_NOREF(pState, pvUser, GCPhysAddr, pv);
+    RT_NOREF(pvUser);
     return VINF_SUCCESS;
 }
 
