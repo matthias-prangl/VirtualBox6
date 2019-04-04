@@ -4,10 +4,27 @@
 # pragma once
 #endif
 
-#define VIRTIO_QUEUE_MAX 1024
-
 #include <iprt/types.h>
 #include <iprt/sg.h>
+
+#define VIRTIO_QUEUE_ALIGN          4096
+#define VIRTIO_QUEUE_MAX            1024
+
+/* Status byte for guest to report progress, and synchronize features. */
+/* We have seen device and processed generic fields (VIRTIO_CONFIG_F_VIRTIO) */
+#define VIRTIO_CONFIG_S_ACKNOWLEDGE	1
+/* We have found a driver for the device. */
+#define VIRTIO_CONFIG_S_DRIVER		2
+/* Driver has used its parts of the config, and is happy */
+#define VIRTIO_CONFIG_S_DRIVER_OK	4
+/* Driver has finished configuring features */
+#define VIRTIO_CONFIG_S_FEATURES_OK	8
+/* Device entered invalid state, driver must reset it */
+#define VIRTIO_CONFIG_S_NEEDS_RESET	0x40
+/* We've given up on this device. */
+#define VIRTIO_CONFIG_S_FAILED		0x80
+
+#define VIRTIO_F_VERSION_1		32
 
 typedef struct VirtioPCIState VirtioPCIState;
 typedef struct VirtioDevice VirtioDevice;
@@ -82,7 +99,7 @@ typedef struct VirtioDevice {
     const char *name;
     uint8_t status;
     uint8_t isr;
-    uint16_t queue_sel;
+    uint16_t queue_select;
     uint64_t guest_features;
     uint64_t host_features;
     uint64_t backend_features;
@@ -100,4 +117,8 @@ typedef struct VirtioDevice {
 
 VirtQueue *virtio_add_queue(VirtioDevice *vdev, uint32_t queue_size, VirtioHandleQueue handle_queue);
 int virtio_queue_get_num(VirtioDevice *vdev, int n);
+void virtio_queue_set_num(VirtioDevice *vdev, int n, int num);
+int virtio_set_features(VirtioDevice *vdev, uint64_t val);
+int virtio_set_status(VirtioDevice *vdev, uint8_t status);
+void virtio_add_feature(uint64_t *features, unsigned int feature);
 #endif //VBOX_INCLUDED_SRC_VirtIOModern_virtio_h
