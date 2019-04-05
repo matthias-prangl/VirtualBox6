@@ -21,11 +21,10 @@
  *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_VIRTIO
 
-#include <VBox/vmm/pdmdev.h>
-#include <iprt/param.h>
-#include <iprt/uuid.h>
 #include "virtioPCI.h"
 #include "virtio.h"
+#include <iprt/param.h>
+#include <iprt/uuid.h>
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 
@@ -102,6 +101,7 @@ virtioPCIISRWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
   RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
   return VINF_SUCCESS;
 }
+
 DECLCALLBACK(int)
 virtioPCIISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                  void *pv, unsigned cb) {
@@ -109,20 +109,66 @@ virtioPCIISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
   RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
   return VINF_SUCCESS;
 }
+
 DECLCALLBACK(int)
 virtioPCIDeviceCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                         void const *pv, unsigned cb) {
   VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
-  RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
+  VirtioDevice *vdev = pState->vdev;
+  uint8_t addr = static_cast<uint8_t>(GCPhysAddr);
+  uint64_t write_data = *(uint64_t *)pv;
+  uint8_t *cfg = static_cast<uint8_t *>(vdev->config);
+
+  if (addr + cb > vdev->config_len) {
+    return 0;
+  }
+
+  switch (cb) {
+  case 2:
+    write_data = RT_LE2H_U16(write_data);
+    break;
+  case 4:
+    write_data = RT_LE2H_U32(write_data);
+    break;
+  default:
+    break;
+  }
+
+  memcpy(cfg + addr, &write_data, cb);
+
+  RT_NOREF(pvUser);
   return VINF_SUCCESS;
 }
+
 DECLCALLBACK(int)
 virtioPCIDeviceCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                        void *pv, unsigned cb) {
   VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
-  RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
+  VirtioDevice *vdev = pState->vdev;
+  uint8_t addr = static_cast<uint8_t>(GCPhysAddr);
+  uint64_t *read_data = static_cast<uint64_t *>(pv);
+  uint8_t *cfg = static_cast<uint8_t *>(vdev->config);
+
+  if (addr + cb > vdev->config_len) {
+    return 0;
+  }
+
+  memcpy(read_data, cfg + addr, cb);
+  switch (cb) {
+  case 2:
+    *read_data = RT_H2LE_U16(*read_data);
+    break;
+  case 4:
+    *read_data = RT_H2LE_U32(*read_data);
+    break;
+  default:
+    break;
+  }
+
+  RT_NOREF(pvUser);
   return VINF_SUCCESS;
 }
+
 DECLCALLBACK(int)
 virtioPCINotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                      void const *pv, unsigned cb) {
@@ -130,6 +176,7 @@ virtioPCINotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
   RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
   return VINF_SUCCESS;
 }
+
 DECLCALLBACK(int)
 virtioPCINotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                     void *pv, unsigned cb) {
