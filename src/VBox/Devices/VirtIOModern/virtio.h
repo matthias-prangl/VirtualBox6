@@ -4,6 +4,7 @@
 #pragma once
 #endif
 
+#include <array>
 #include <iprt/sg.h>
 #include <iprt/types.h>
 
@@ -103,7 +104,7 @@ typedef struct VirtioDevice {
   uint16_t config_vector;
   uint32_t generation;
   int nvectors;
-  VirtQueue *vq;
+  std::array<VirtQueue, 1024> vq;
   uint16_t device_id;
   bool vm_running;
   bool broken;

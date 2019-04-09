@@ -34,8 +34,11 @@ virtioexampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   if (rc != VINF_SUCCESS)
     rc = VINF_SUCCESS;
 
-  pThis->vdev.vq = (VirtQueue *)calloc(VIRTIO_QUEUE_MAX, sizeof(VirtQueue));
-  Assert(pThis->vdev.vq != NULL);
+  for (auto it = vdev->vq.begin(); it != vdev->vq.end(); it++) {
+    it->vector = 0;
+    it->vdev = vdev;
+    it->queue_idx = it - vdev->vq.begin();
+  }
 
   pThis->vq1 = virtio_add_queue(&pThis->vdev, 256, &handle_q1);
   pThis->vq2 = virtio_add_queue(&pThis->vdev, 16, &handle_q2);

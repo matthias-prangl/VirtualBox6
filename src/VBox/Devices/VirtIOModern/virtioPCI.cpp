@@ -238,7 +238,18 @@ void virtioPCIReset(VirtioPCIState *pState) {
   vdev->status = 0x00;
 }
 
-/// @todo header
+/**
+ * Construct PCI-related part of device and configure PCI registers
+ *
+ * @returns VBox status code.
+ * @param   pDevIns      Pointer to the PDM device instance
+ * @param   pState       Pointer to the VirtioPCIState
+ * @param   iInstance    Device instance number
+ * @param   pcszNameFmt  Device description
+ * @param   uDeviceId    PCI device ID
+ * @param   uClass       PCI device class
+ * @param   nQueues      Number of VirtQueues this device uses.
+ */
 int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIState *pState,
                        int iInstance, const char *pcszNameFmt,
                        uint16_t uDeviceId, uint16_t uClass, uint32_t nQueues) {

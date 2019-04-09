@@ -22,6 +22,7 @@
 #pragma once
 #endif
 
+#include <VBox/vmm/pdmdev.h>
 #include <iprt/ctype.h>
 
 #define DEVICE_PCI_VENDOR_ID 0x1AF4
@@ -73,6 +74,11 @@ struct virtio_pci_cap {
   uint8_t padding[3]; /* Pad to full dword. */
   uint32_t offset;    /* Offset within bar. */
   uint32_t length;    /* Length of the structure, in bytes. */
+};
+
+struct virtio_pci_notify_cap {
+  struct virtio_pci_cap cap;
+  uint32_t notify_off_multiplier; /* Multiplier for queue_notify_off. */
 };
 
 typedef struct VirtioPCIQueue {
@@ -170,5 +176,7 @@ virtioPCINotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
 DECLCALLBACK(int)
 virtioPCINotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                     void *pv, unsigned cb);
+
+void virtioPCINotify(VirtioPCIState *pciDev);
 
 #endif /* !VBOX_INCLUDED_SRC_VirtIOModern_VirtioPCI_h */
