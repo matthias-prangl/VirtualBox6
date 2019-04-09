@@ -67,7 +67,14 @@ void virtioPCISetCapabilityList(PPDMPCIDEV pci, uint8_t cap_base) {
   tmp_cap.cfg_type = VIRTIO_PCI_CAP_NOTIFY_CFG;
   tmp_cap.offset = RT_H2LE_U32(0x00003000);
   tmp_cap.length = RT_H2LE_U32(0x00001000);
-  memcpy(&pci->abConfig[0x70], &tmp_cap, sizeof(tmp_cap));
+  tmp_cap.cap_len = sizeof(virtio_pci_notify_cap);
+
+  struct virtio_pci_notify_cap notify = {
+      tmp_cap,        // cap
+      RT_H2LE_U32(4), // notify_off_multiplier
+  };
+
+  memcpy(&pci->abConfig[0x70], &notify, sizeof(notify));
 }
 
 /**
@@ -106,7 +113,13 @@ DECLCALLBACK(int)
 virtioPCIISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                  void *pv, unsigned cb) {
   VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
-  RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
+  VirtioDevice *vdev = pState->vdev;
+  uint8_t *read_data = static_cast<uint8_t *>(pv);
+
+  *read_data = ASMAtomicXchgU8(&vdev->isr, 0);
+  PDMDevHlpPCISetIrq(pState->CTX_SUFF(pDevIns), 0, PDM_IRQ_LEVEL_LOW);
+
+  RT_NOREF(pvUser, GCPhysAddr, cb);
   return VINF_SUCCESS;
 }
 
@@ -432,6 +445,10 @@ virtioPCICommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
   }
   RT_NOREF(pvUser);
   return VINF_SUCCESS;
+}
+
+void virtioPCINotify(VirtioPCIState *pciDev) {
+  PDMDevHlpPCISetIrq(pciDev->CTX_SUFF(pDevIns), 0, PDM_IRQ_LEVEL_HIGH);
 }
 
 #endif /* VBOX_DEVICE_STRUCT_TESTCASE */
