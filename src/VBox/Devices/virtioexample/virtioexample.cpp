@@ -1,9 +1,8 @@
-#include <VBox/version.h>
-#include <VBox/vmm/pdmdev.h>
-#include <iprt/mem.h>
-#include <iprt/uuid.h>
 #include "virtioexample.h"
 #include "../VirtIOModern/virtioPCI.h"
+#include <VBox/version.h>
+#include <iprt/mem.h>
+#include <iprt/uuid.h>
 
 void handle_q1(VirtioDevice *vdev, VirtQueue *vq) {
   RT_NOREF(vq, vdev);
@@ -11,7 +10,17 @@ void handle_q1(VirtioDevice *vdev, VirtQueue *vq) {
 }
 
 void handle_q2(VirtioDevice *vdev, VirtQueue *vq) {
-  RT_NOREF(vq, vdev);
+  virtio_notify(vdev, vq);
+  return;
+}
+
+void virtioexample_get_config(VirtioDevice *vdev, uint8_t *config) {
+  RT_NOREF(vdev, config);
+  return;
+}
+
+void virtioexample_set_config(VirtioDevice *vdev, const uint8_t *config) {
+  RT_NOREF(vdev, config);
   return;
 }
 
@@ -33,6 +42,16 @@ virtioexampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   // Last call fails because there is no LUN, ignore for the time being
   if (rc != VINF_SUCCESS)
     rc = VINF_SUCCESS;
+  vdev->config_len = sizeof(virtio_example_config);
+  vdev->config = calloc(1, sizeof(virtio_example_config));
+  if (!vdev->config) {
+    rc = VERR_NO_MEMORY;
+  }
+  vdev->set_config = virtioexample_set_config;
+  vdev->get_config = virtioexample_get_config;
+  vdev->virtio_notify_bus = virtioPCINotify;
+  vdev->config = &pThis->example_config;
+  pThis->example_config.num_scanouts = 1;
 
   for (auto it = vdev->vq.begin(); it != vdev->vq.end(); it++) {
     it->vector = 0;

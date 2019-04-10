@@ -101,21 +101,28 @@ typedef struct VirtioDevice {
   uint64_t backend_features;
   size_t config_len;
   void *config;
-  uint16_t config_vector;
   uint32_t generation;
-  int nvectors;
-  std::array<VirtQueue, 1024> vq;
+  std::array<VirtQueue, VIRTIO_QUEUE_MAX> vq;
   uint16_t device_id;
   bool vm_running;
   bool broken;
   uint8_t device_endian;
+  void (*virtio_notify_bus)(VirtioDevice *pciDev);
+  void (*reset)(VirtioDevice *vdev);
+  void (*get_config)(VirtioDevice *vdev, uint8_t *config);
+  void (*set_config)(VirtioDevice *vdev, const uint8_t *config);
 } VirtioDevice;
 
 VirtQueue *virtio_add_queue(VirtioDevice *vdev, uint32_t queue_size,
                             VirtioHandleQueue handle_queue);
+void virtio_del_queue(VirtioDevice *vdev, int n);
 int virtio_queue_get_num(VirtioDevice *vdev, int n);
 void virtio_queue_set_num(VirtioDevice *vdev, int n, int num);
 int virtio_set_features(VirtioDevice *vdev, uint64_t val);
 int virtio_set_status(VirtioDevice *vdev, uint8_t status);
 void virtio_add_feature(uint64_t *features, unsigned int feature);
+void virtio_queue_notify(VirtioDevice *vdev, int n);
+void virtio_queue_set_rings(VirtioDevice *vdev, int n, uint64_t desc,
+                            uint64_t avail, uint64_t used);
+void virtio_notify(VirtioDevice *vdev, VirtQueue *vq);
 #endif // VBOX_INCLUDED_SRC_VirtIOModern_virtio_h

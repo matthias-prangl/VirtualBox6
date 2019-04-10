@@ -19,18 +19,37 @@ VirtQueue *virtio_add_queue(VirtioDevice *vdev, uint32_t queue_size,
   return &(*it);
 }
 
+void virtio_notify(VirtioDevice *vdev, VirtQueue *vq) {
+  vdev->virtio_notify_bus(vdev);
+}
 
-  Assert(i != VIRTIO_QUEUE_MAX && queue_size <= VIRTIO_QUEUE_MAX);
+void virtio_queue_notify(VirtioDevice *vdev, int n) {
+  VirtQueue *vq = &vdev->vq[n];
 
-  vdev->vq[i].vring.num = queue_size;
-  vdev->vq[i].vring.num_default = queue_size;
-  vdev->vq[i].vring.align = VIRTIO_QUEUE_ALIGN;
-  vdev->vq[i].handle_queue = handle_queue;
-  return &vdev->vq[i];
+  if (vq->handle_queue) {
+    vq->handle_queue(vdev, vq);
+  }
+}
+
+void virtio_del_queue(VirtioDevice *vdev, int n) {
+  Assert(n >= 0 && n < VIRTIO_QUEUE_MAX);
+  vdev->vq[n].vring.num = 0;
+  vdev->vq[n].vring.num_default = 0;
+  vdev->vq[n].handle_queue = NULL;
 }
 
 int virtio_queue_get_num(VirtioDevice *vdev, int n) {
   return vdev->vq[n].vring.num;
+}
+
+void virtio_queue_set_rings(VirtioDevice *vdev, int n, uint64_t desc,
+                            uint64_t avail, uint64_t used) {
+  if (!vdev->vq[n].vring.num) {
+    return;
+  }
+  vdev->vq[n].vring.desc = desc;
+  vdev->vq[n].vring.avail = avail;
+  vdev->vq[n].vring.used = used;
 }
 
 void virtio_add_feature(uint64_t *features, unsigned int feature) {

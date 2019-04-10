@@ -81,9 +81,8 @@ void virtioPCISetCapabilityList(PPDMPCIDEV pci, uint8_t cap_base) {
  * Set PCI configuration space registers.
  *
  * @param   pci          Reference to PCI device structure.
- * @param   uDeviceId    VirtiO Device Id
+ * @param   uDeviceId    Virtio Device Id
  * @param   uClass       Class of PCI device (network, etc)
- * @thread  EMT
  */
 DECLCALLBACK(void)
 virtioPCIConfigure(PDMPCIDEV &pci, uint16_t uDeviceId, uint16_t uClass) {
@@ -186,7 +185,14 @@ DECLCALLBACK(int)
 virtioPCINotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                      void const *pv, unsigned cb) {
   VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
-  RT_NOREF(pState, pvUser, GCPhysAddr, pv, cb);
+  VirtioDevice *vdev = pState->vdev;
+  uint64_t addr = *(uint16_t *)pv;
+
+  unsigned queue = addr;
+  if (queue < VIRTIO_QUEUE_MAX)
+    virtio_queue_notify(vdev, queue);
+
+  RT_NOREF(pvUser, GCPhysAddr, cb);
   return VINF_SUCCESS;
 }
 
@@ -227,13 +233,12 @@ virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
 
 void virtioPCIReset(VirtioPCIState *pState) {
   VirtioDevice *vdev = pState->vdev;
-
-  for (int i = 0; i < VIRTIO_QUEUE_MAX; i++) {
-    pState->vqs[i].enabled = 0;
-    pState->vqs[i].num = 0;
-    pState->vqs[i].desc[0] = pState->vqs[i].desc[1] = 0;
-    pState->vqs[i].avail[0] = pState->vqs[i].avail[1] = 0;
-    pState->vqs[i].used[0] = pState->vqs[i].used[1] = 0;
+  for (auto it = pState->vqs.begin(); it != pState->vqs.end(); it++) {
+    it->enabled = 0;
+    it->num = 0;
+    it->desc[0] = it->desc[1] = 0;
+    it->avail[0] = it->avail[1] = 0;
+    it->used[0] = it->used[1] = 0;
   }
   vdev->status = 0x00;
 }
@@ -275,9 +280,10 @@ int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIState *pState,
   if (RT_FAILURE(rc))
     return rc;
   /* Register required MMIO Regions */
-  rc = PDMDevHlpPCIIORegionRegister(pDevIns, 2, 0x0000000000004000,
-                                    PCI_ADDRESS_SPACE_MEM_PREFETCH,
-                                    virtioPCIMap);
+  rc = PDMDevHlpPCIIORegionRegisterEx(
+      pDevIns, &pState->pciDevice, 2, 0x0000000000004000,
+      PCI_ADDRESS_SPACE_MEM_PREFETCH, virtioPCIMap);
+
   if (RT_FAILURE(rc))
     return rc;
 
@@ -351,7 +357,14 @@ virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
   case VIRTIO_PCI_COMMON_Q_ENABLE:
     virtio_queue_set_num(vdev, vdev->queue_select,
                          pState->vqs[vdev->queue_select].num);
-    // TODO: update VRINGs
+    virtio_queue_set_rings(
+        vdev, vdev->queue_select,
+        ((uint64_t)pState->vqs[vdev->queue_select].desc[1]) << 32 |
+            pState->vqs[vdev->queue_select].desc[0],
+        ((uint64_t)pState->vqs[vdev->queue_select].avail[1]) << 32 |
+            pState->vqs[vdev->queue_select].avail[0],
+        ((uint64_t)pState->vqs[vdev->queue_select].used[1]) << 32 |
+            pState->vqs[vdev->queue_select].used[0]);
     pState->vqs[vdev->queue_select].enabled = 1;
     break;
   case VIRTIO_PCI_COMMON_Q_DESCLO:
@@ -406,7 +419,7 @@ virtioPCICommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
     *read_data = 0;
     break; // MSIX not supported. What to do?
   case VIRTIO_PCI_COMMON_NUMQ:
-    for (int i = 0; i < 1024; i++) {
+    for (int i = 0; i < VIRTIO_QUEUE_MAX; i++) {
       if (virtio_queue_get_num(vdev, i)) {
         *read_data = i + 1;
       }
@@ -458,8 +471,8 @@ virtioPCICommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
   return VINF_SUCCESS;
 }
 
-void virtioPCINotify(VirtioPCIState *pciDev) {
-  PDMDevHlpPCISetIrq(pciDev->CTX_SUFF(pDevIns), 0, PDM_IRQ_LEVEL_HIGH);
+void virtioPCINotify(VirtioDevice *vdev) {
+  PDMDevHlpPCISetIrq(vdev->pciDev->CTX_SUFF(pDevIns), 0, PDM_IRQ_LEVEL_HIGH);
 }
 
 #endif /* VBOX_DEVICE_STRUCT_TESTCASE */
