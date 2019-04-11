@@ -342,14 +342,17 @@ virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
     break; // MSIX not supported. What to do?
   case VIRTIO_PCI_COMMON_STATUS:
     virtio_set_status(vdev, write_data & 0xFF);
-    if (vdev->status == 0)
+    if (vdev->status == 0) {
       virtioPCIReset(vpciDev);
+    }
     break;
   case VIRTIO_PCI_COMMON_Q_SELECT:
+    if (write_data < VIRTIO_QUEUE_MAX) {
     vpciDev->queue_select = write_data;
+    }
     break;
   case VIRTIO_PCI_COMMON_Q_SIZE:
-    vpciDev->vqs[vpciDev->queue_select].num = write_data;
+    vpciDev->vqs[vdev->queue_select].num = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_MSIX:
     break; // MSIX not supported. What to do?
@@ -367,22 +370,22 @@ virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
     vpciDev->vqs[vdev->queue_select].enabled = 1;
     break;
   case VIRTIO_PCI_COMMON_Q_DESCLO:
-    vpciDev->vqs[vpciDev->queue_select].desc[0] = write_data;
+    vpciDev->vqs[vdev->queue_select].desc[0] = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_DESCHI:
-    vpciDev->vqs[vpciDev->queue_select].desc[1] = write_data;
+    vpciDev->vqs[vdev->queue_select].desc[1] = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_AVAILLO:
-    vpciDev->vqs[vpciDev->queue_select].avail[0] = write_data;
+    vpciDev->vqs[vdev->queue_select].avail[0] = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_AVAILHI:
-    vpciDev->vqs[vpciDev->queue_select].avail[1] = write_data;
+    vpciDev->vqs[vdev->queue_select].avail[1] = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_USEDLO:
-    vpciDev->vqs[vpciDev->queue_select].used[0] = write_data;
+    vpciDev->vqs[vdev->queue_select].used[0] = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_USEDHI:
-    vpciDev->vqs[vpciDev->queue_select].used[1] = write_data;
+    vpciDev->vqs[vdev->queue_select].used[1] = write_data;
     break;
   }
 
