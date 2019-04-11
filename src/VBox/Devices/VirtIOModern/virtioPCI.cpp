@@ -322,7 +322,21 @@ virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
   VirtioDevice *vdev = vpciDev->vdev;
   uint8_t cmd = (uint8_t)GCPhysAddr;
   uint64_t write_data = *(uint64_t *)pv;
-  Assert((size == 1) | (size == 2) | (size == 4));
+
+  switch (size) {
+  case 1:
+    write_data = (uint8_t)write_data;
+    break;
+  case 2:
+    write_data = (uint16_t)write_data;
+    break;
+  case 4:
+    write_data = (uint32_t)write_data;
+    break;
+  default:
+    return VWRN_INVALID_PARAMETER;
+  }
+
   switch (cmd) {
   case VIRTIO_PCI_COMMON_DFSELECT:
     vpciDev->device_feature_select = write_data;
@@ -348,7 +362,7 @@ virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
     break;
   case VIRTIO_PCI_COMMON_Q_SELECT:
     if (write_data < VIRTIO_QUEUE_MAX) {
-    vpciDev->queue_select = write_data;
+      vdev->queue_select = write_data;
     }
     break;
   case VIRTIO_PCI_COMMON_Q_SIZE:
