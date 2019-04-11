@@ -96,7 +96,7 @@ typedef struct VirtioDevice VirtioDevice;
  * The core (/common) state of the VirtIO PCI device
  *
  */
-typedef struct VirtioPCIState {
+typedef struct VirtioPCIDevice {
   PDMCRITSECT cs; /**< Critical section - what is it protecting? */
   /* Read-only part, never changes after initialization. */
   char szInstance[8]; /**< Instance name, e.g. VNet#1. */
@@ -137,7 +137,7 @@ typedef struct VirtioPCIState {
   uint16_t queue_notify_off;
   std::array<VirtioPCIQueue, VIRTIO_QUEUE_MAX> vqs;
   VirtioDevice *vdev;
-} VirtioPCIState;
+} VirtioPCIDevice;
 
 DECLCALLBACK(int)
 virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
@@ -147,11 +147,11 @@ DECLCALLBACK(void)
 virtioPCIConfigure(PDMPCIDEV &pci, uint16_t uDeviceId, uint16_t uClass);
 void virtioPCISetCapabilityList(PPDMPCIDEV pci, uint8_t cap_base);
 
-int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIState *pState,
+int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIDevice *vpciDev,
                        int iInstance, const char *pcszNameFmt,
                        uint16_t uDeviceId, uint16_t uClass, uint32_t nQueues);
-int virtioPCIDestruct(VirtioPCIState *pState);
-void virtioPCIReset(VirtioPCIState *pState);
+int virtioPCIDestruct(VirtioPCIDevice *vpciDev);
+void virtioPCIReset(VirtioPCIDevice *vpciDev);
 
 DECLCALLBACK(int)
 virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,

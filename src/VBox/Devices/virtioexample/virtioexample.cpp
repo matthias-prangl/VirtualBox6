@@ -28,7 +28,7 @@ DECLCALLBACK(int)
 virtioexampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
   VirtioexampleState *pThis = PDMINS_2_DATA(pDevIns, VirtioexampleState *);
-  VirtioPCIState *pciDev = &pThis->vpci;
+  VirtioPCIDevice *pciDev = &pThis->vpci;
   VirtioDevice *vdev = &pThis->vdev;
   vdev->pciDev = pciDev;
   pciDev->vdev = vdev;

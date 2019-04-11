@@ -19,7 +19,7 @@ struct virtio_example_config {
 };
 
 typedef struct VirtioexampleState {
-  VirtioPCIState vpci;
+  VirtioPCIDevice vpci;
   VirtioDevice vdev;
   VirtQueue *vq1;
   VirtQueue *vq2;

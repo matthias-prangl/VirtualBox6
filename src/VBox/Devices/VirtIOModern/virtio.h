@@ -27,7 +27,7 @@
 
 #define VIRTIO_F_VERSION_1 32
 
-typedef struct VirtioPCIState VirtioPCIState;
+typedef struct VirtioPCIDevice VirtioPCIDevice;
 typedef struct VirtioDevice VirtioDevice;
 typedef struct VirtQueue VirtQueue;
 typedef void (*VirtioHandleQueue)(VirtioDevice *, VirtQueue *);
@@ -91,7 +91,7 @@ typedef struct VirtQueue {
 } VirtQueue;
 
 typedef struct VirtioDevice {
-  VirtioPCIState *pciDev;
+  VirtioPCIDevice *pciDev;
   const char *name;
   uint8_t status;
   uint8_t isr;

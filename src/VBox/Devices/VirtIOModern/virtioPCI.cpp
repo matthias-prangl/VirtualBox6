@@ -111,12 +111,12 @@ virtioPCIISRWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
 DECLCALLBACK(int)
 virtioPCIISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                  void *pv, unsigned cb) {
-  VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
-  VirtioDevice *vdev = pState->vdev;
+  VirtioPCIDevice *vpciDev = PDMINS_2_DATA(pDevIns, VirtioPCIDevice *);
+  VirtioDevice *vdev = vpciDev->vdev;
   uint8_t *read_data = static_cast<uint8_t *>(pv);
 
   *read_data = ASMAtomicXchgU8(&vdev->isr, 0);
-  PDMDevHlpPCISetIrq(pState->CTX_SUFF(pDevIns), 0, PDM_IRQ_LEVEL_LOW);
+  PDMDevHlpPCISetIrq(vpciDev->CTX_SUFF(pDevIns), 0, PDM_IRQ_LEVEL_LOW);
 
   RT_NOREF(pvUser, GCPhysAddr, cb);
   return VINF_SUCCESS;
@@ -125,8 +125,8 @@ virtioPCIISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
 DECLCALLBACK(int)
 virtioPCIDeviceCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                         void const *pv, unsigned cb) {
-  VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
-  VirtioDevice *vdev = pState->vdev;
+  VirtioPCIDevice *vpciDev = PDMINS_2_DATA(pDevIns, VirtioPCIDevice *);
+  VirtioDevice *vdev = vpciDev->vdev;
   uint8_t addr = static_cast<uint8_t>(GCPhysAddr);
   uint64_t write_data = *(uint64_t *)pv;
   uint8_t *cfg = static_cast<uint8_t *>(vdev->config);
@@ -155,8 +155,8 @@ virtioPCIDeviceCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
 DECLCALLBACK(int)
 virtioPCIDeviceCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                        void *pv, unsigned cb) {
-  VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
-  VirtioDevice *vdev = pState->vdev;
+  VirtioPCIDevice *vpciDev = PDMINS_2_DATA(pDevIns, VirtioPCIDevice *);
+  VirtioDevice *vdev = vpciDev->vdev;
   uint8_t addr = static_cast<uint8_t>(GCPhysAddr);
   uint64_t *read_data = static_cast<uint64_t *>(pv);
   uint8_t *cfg = static_cast<uint8_t *>(vdev->config);
@@ -184,8 +184,8 @@ virtioPCIDeviceCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
 DECLCALLBACK(int)
 virtioPCINotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                      void const *pv, unsigned cb) {
-  VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
-  VirtioDevice *vdev = pState->vdev;
+  VirtioPCIDevice *vpciDev = PDMINS_2_DATA(pDevIns, VirtioPCIDevice *);
+  VirtioDevice *vdev = vpciDev->vdev;
   uint64_t addr = *(uint16_t *)pv;
 
   unsigned queue = addr;
@@ -206,8 +206,6 @@ virtioPCINotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
 DECLCALLBACK(int)
 virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
              RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType) {
-  VirtioPCIState *pThis = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
-
   int rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress + 0x0000, 0x1000, NULL,
                                  0, virtioPCICommonCfgWrite,
                                  virtioPCICommonCfgRead, "VirtioPCICommonCfg");
@@ -227,13 +225,13 @@ virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
                              virtioPCINotifyWrite, virtioPCINotifyRead,
                              "VirtioPCINotify");
   Assert(rc == VINF_SUCCESS);
-  RT_NOREF(enmType, cb, iRegion, pPciDev, pThis);
+  RT_NOREF(enmType, cb, iRegion, pPciDev);
   return rc;
 }
 
-void virtioPCIReset(VirtioPCIState *pState) {
-  VirtioDevice *vdev = pState->vdev;
-  for (auto it = pState->vqs.begin(); it != pState->vqs.end(); it++) {
+void virtioPCIReset(VirtioPCIDevice *vpciDev) {
+  VirtioDevice *vdev = vpciDev->vdev;
+  for (auto it = vpciDev->vqs.begin(); it != vpciDev->vqs.end(); it++) {
     it->enabled = 0;
     it->num = 0;
     it->desc[0] = it->desc[1] = 0;
@@ -248,40 +246,40 @@ void virtioPCIReset(VirtioPCIState *pState) {
  *
  * @returns VBox status code.
  * @param   pDevIns      Pointer to the PDM device instance
- * @param   pState       Pointer to the VirtioPCIState
+ * @param   vpciDev       Pointer to the VirtioPCIDevice
  * @param   iInstance    Device instance number
  * @param   pcszNameFmt  Device description
  * @param   uDeviceId    PCI device ID
  * @param   uClass       PCI device class
  * @param   nQueues      Number of VirtQueues this device uses.
  */
-int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIState *pState,
+int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIDevice *vpciDev,
                        int iInstance, const char *pcszNameFmt,
                        uint16_t uDeviceId, uint16_t uClass, uint32_t nQueues) {
   /* Init handles and log related stuff. */
-  RTStrPrintf(pState->szInstance, sizeof(pState->szInstance), pcszNameFmt,
+  RTStrPrintf(vpciDev->szInstance, sizeof(vpciDev->szInstance), pcszNameFmt,
               iInstance);
 
-  pState->pDevInsR3 = pDevIns;
-  pState->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
-  pState->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
+  vpciDev->pDevInsR3 = pDevIns;
+  vpciDev->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
+  vpciDev->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
 
   /* Initialize critical section. */
-  int rc = PDMDevHlpCritSectInit(pDevIns, &pState->cs, RT_SRC_POS, "%s",
-                                 pState->szInstance);
+  int rc = PDMDevHlpCritSectInit(pDevIns, &vpciDev->cs, RT_SRC_POS, "%s",
+                                 vpciDev->szInstance);
   if (RT_FAILURE(rc))
     return rc;
 
   /* Set PCI config registers */
-  virtioPCIConfigure(pState->pciDevice, uDeviceId, uClass);
-  virtioPCISetCapabilityList(&pState->pciDevice, CAP_BASE);
+  virtioPCIConfigure(vpciDev->pciDevice, uDeviceId, uClass);
+  virtioPCISetCapabilityList(&vpciDev->pciDevice, CAP_BASE);
   /* Register PCI device */
-  rc = PDMDevHlpPCIRegister(pDevIns, &pState->pciDevice);
+  rc = PDMDevHlpPCIRegister(pDevIns, &vpciDev->pciDevice);
   if (RT_FAILURE(rc))
     return rc;
   /* Register required MMIO Regions */
   rc = PDMDevHlpPCIIORegionRegisterEx(
-      pDevIns, &pState->pciDevice, 2, 0x0000000000004000,
+      pDevIns, &vpciDev->pciDevice, 2, 0x0000000000004000,
       PCI_ADDRESS_SPACE_MEM_PREFETCH, virtioPCIMap);
 
   if (RT_FAILURE(rc))
@@ -289,9 +287,9 @@ int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIState *pState,
 
   /* Status driver */
   PPDMIBASE pBase;
-  pState->num_queues = nQueues;
-  virtio_add_feature(&pState->vdev->host_features, VIRTIO_F_VERSION_1);
-  rc = PDMDevHlpDriverAttach(pDevIns, PDM_STATUS_LUN, &pState->IBase, &pBase,
+  vpciDev->num_queues = nQueues;
+  virtio_add_feature(&vpciDev->vdev->host_features, VIRTIO_F_VERSION_1);
+  rc = PDMDevHlpDriverAttach(pDevIns, PDM_STATUS_LUN, &vpciDev->IBase, &pBase,
                              "Status Port");
 
   if (RT_FAILURE(rc))
@@ -306,13 +304,13 @@ int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIState *pState,
  * We need to free non-VM resources only.
  *
  * @returns VBox status code.
- * @param   pState      The device state structure.
+ * @param   vpciDev      The device state structure.
  */
-int virtioPCIDestruct(VirtioPCIState *pState) {
-  Log(("%s Destroying PCI instance\n", pState->szInstance));
+int virtioPCIDestruct(VirtioPCIDevice *vpciDev) {
+  Log(("%s Destroying PCI instance\n", vpciDev->szInstance));
 
-  if (PDMCritSectIsInitialized(&pState->cs))
-    PDMR3CritSectDelete(&pState->cs);
+  if (PDMCritSectIsInitialized(&vpciDev->cs))
+    PDMR3CritSectDelete(&vpciDev->cs);
 
   return VINF_SUCCESS;
 }
@@ -320,23 +318,24 @@ int virtioPCIDestruct(VirtioPCIState *pState) {
 DECLCALLBACK(int)
 virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                         void const *pv, unsigned size) {
-  VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
-  VirtioDevice *vdev = pState->vdev;
+  VirtioPCIDevice *vpciDev = PDMINS_2_DATA(pDevIns, VirtioPCIDevice *);
+  VirtioDevice *vdev = vpciDev->vdev;
   uint8_t cmd = (uint8_t)GCPhysAddr;
   uint64_t write_data = *(uint64_t *)pv;
   Assert((size == 1) | (size == 2) | (size == 4));
   switch (cmd) {
   case VIRTIO_PCI_COMMON_DFSELECT:
-    pState->device_feature_select = write_data;
+    vpciDev->device_feature_select = write_data;
     break;
   case VIRTIO_PCI_COMMON_GFSELECT:
-    pState->driver_feature_select = write_data;
+    vpciDev->driver_feature_select = write_data;
     break;
   case VIRTIO_PCI_COMMON_GF:
-    if (pState->driver_feature_select <= 1) {
-      pState->driver_features[pState->driver_feature_select] = write_data;
-      virtio_set_features(vdev, (((uint64_t)pState->driver_features[1]) << 32) |
-                                    pState->driver_features[0]);
+    if (vpciDev->driver_feature_select <= 1) {
+      vpciDev->driver_features[vpciDev->driver_feature_select] = write_data;
+      virtio_set_features(vdev,
+                          (((uint64_t)vpciDev->driver_features[1]) << 32) |
+                              vpciDev->driver_features[0]);
     }
     break;
   case VIRTIO_PCI_COMMON_MSIX:
@@ -344,46 +343,46 @@ virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
   case VIRTIO_PCI_COMMON_STATUS:
     virtio_set_status(vdev, write_data & 0xFF);
     if (vdev->status == 0)
-      virtioPCIReset(pState);
+      virtioPCIReset(vpciDev);
     break;
   case VIRTIO_PCI_COMMON_Q_SELECT:
-    pState->queue_select = write_data;
+    vpciDev->queue_select = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_SIZE:
-    pState->vqs[pState->queue_select].num = write_data;
+    vpciDev->vqs[vpciDev->queue_select].num = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_MSIX:
     break; // MSIX not supported. What to do?
   case VIRTIO_PCI_COMMON_Q_ENABLE:
     virtio_queue_set_num(vdev, vdev->queue_select,
-                         pState->vqs[vdev->queue_select].num);
+                         vpciDev->vqs[vdev->queue_select].num);
     virtio_queue_set_rings(
         vdev, vdev->queue_select,
-        ((uint64_t)pState->vqs[vdev->queue_select].desc[1]) << 32 |
-            pState->vqs[vdev->queue_select].desc[0],
-        ((uint64_t)pState->vqs[vdev->queue_select].avail[1]) << 32 |
-            pState->vqs[vdev->queue_select].avail[0],
-        ((uint64_t)pState->vqs[vdev->queue_select].used[1]) << 32 |
-            pState->vqs[vdev->queue_select].used[0]);
-    pState->vqs[vdev->queue_select].enabled = 1;
+        ((uint64_t)vpciDev->vqs[vdev->queue_select].desc[1]) << 32 |
+            vpciDev->vqs[vdev->queue_select].desc[0],
+        ((uint64_t)vpciDev->vqs[vdev->queue_select].avail[1]) << 32 |
+            vpciDev->vqs[vdev->queue_select].avail[0],
+        ((uint64_t)vpciDev->vqs[vdev->queue_select].used[1]) << 32 |
+            vpciDev->vqs[vdev->queue_select].used[0]);
+    vpciDev->vqs[vdev->queue_select].enabled = 1;
     break;
   case VIRTIO_PCI_COMMON_Q_DESCLO:
-    pState->vqs[pState->queue_select].desc[0] = write_data;
+    vpciDev->vqs[vpciDev->queue_select].desc[0] = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_DESCHI:
-    pState->vqs[pState->queue_select].desc[1] = write_data;
+    vpciDev->vqs[vpciDev->queue_select].desc[1] = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_AVAILLO:
-    pState->vqs[pState->queue_select].avail[0] = write_data;
+    vpciDev->vqs[vpciDev->queue_select].avail[0] = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_AVAILHI:
-    pState->vqs[pState->queue_select].avail[1] = write_data;
+    vpciDev->vqs[vpciDev->queue_select].avail[1] = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_USEDLO:
-    pState->vqs[pState->queue_select].used[0] = write_data;
+    vpciDev->vqs[vpciDev->queue_select].used[0] = write_data;
     break;
   case VIRTIO_PCI_COMMON_Q_USEDHI:
-    pState->vqs[pState->queue_select].used[1] = write_data;
+    vpciDev->vqs[vpciDev->queue_select].used[1] = write_data;
     break;
   }
 
@@ -394,26 +393,26 @@ virtioPCICommonCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
 DECLCALLBACK(int)
 virtioPCICommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                        void *pv, unsigned size) {
-  VirtioPCIState *pState = PDMINS_2_DATA(pDevIns, VirtioPCIState *);
-  VirtioDevice *vdev = pState->vdev;
+  VirtioPCIDevice *vpciDev = PDMINS_2_DATA(pDevIns, VirtioPCIDevice *);
+  VirtioDevice *vdev = vpciDev->vdev;
   uint8_t cmd = (uint8_t)GCPhysAddr;
   uint64_t *read_data = (uint64_t *)pv;
 
   Assert((size == 1) | (size == 2) | (size == 4));
   switch (cmd) {
   case VIRTIO_PCI_COMMON_DFSELECT:
-    *read_data = pState->device_feature_select;
+    *read_data = vpciDev->device_feature_select;
     break;
   case VIRTIO_PCI_COMMON_DF:
-    if (pState->device_feature_select <= 1)
-      *read_data = vdev->host_features >> (32 * pState->device_feature_select);
+    if (vpciDev->device_feature_select <= 1)
+      *read_data = vdev->host_features >> (32 * vpciDev->device_feature_select);
     break;
   case VIRTIO_PCI_COMMON_GFSELECT:
-    *read_data = pState->driver_feature_select;
+    *read_data = vpciDev->driver_feature_select;
     break;
   case VIRTIO_PCI_COMMON_GF:
-    if (pState->driver_feature_select <= 1)
-      *read_data = pState->driver_features[pState->driver_feature_select];
+    if (vpciDev->driver_feature_select <= 1)
+      *read_data = vpciDev->driver_features[vpciDev->driver_feature_select];
     break;
   case VIRTIO_PCI_COMMON_MSIX:
     *read_data = 0;
@@ -441,28 +440,28 @@ virtioPCICommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
     *read_data = 0;
     break; // MSIX not supported. What to do?
   case VIRTIO_PCI_COMMON_Q_ENABLE:
-    *read_data = pState->vqs[vdev->queue_select].enabled;
+    *read_data = vpciDev->vqs[vdev->queue_select].enabled;
     break;
   case VIRTIO_PCI_COMMON_Q_NOFF:
     *read_data = vdev->queue_select;
     break;
   case VIRTIO_PCI_COMMON_Q_DESCLO:
-    *read_data = pState->vqs[vdev->queue_select].desc[0];
+    *read_data = vpciDev->vqs[vdev->queue_select].desc[0];
     break;
   case VIRTIO_PCI_COMMON_Q_DESCHI:
-    *read_data = pState->vqs[vdev->queue_select].desc[1];
+    *read_data = vpciDev->vqs[vdev->queue_select].desc[1];
     break;
   case VIRTIO_PCI_COMMON_Q_AVAILLO:
-    *read_data = pState->vqs[vdev->queue_select].avail[0];
+    *read_data = vpciDev->vqs[vdev->queue_select].avail[0];
     break;
   case VIRTIO_PCI_COMMON_Q_AVAILHI:
-    *read_data = pState->vqs[vdev->queue_select].avail[1];
+    *read_data = vpciDev->vqs[vdev->queue_select].avail[1];
     break;
   case VIRTIO_PCI_COMMON_Q_USEDLO:
-    *read_data = pState->vqs[vdev->queue_select].used[0];
+    *read_data = vpciDev->vqs[vdev->queue_select].used[0];
     break;
   case VIRTIO_PCI_COMMON_Q_USEDHI:
-    *read_data = pState->vqs[vdev->queue_select].used[1];
+    *read_data = vpciDev->vqs[vdev->queue_select].used[1];
     break;
   default:
     *read_data = 0;
