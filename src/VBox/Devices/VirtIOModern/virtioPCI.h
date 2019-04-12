@@ -180,4 +180,7 @@ virtioPCINotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
 
 void virtioPCINotify(VirtioDevice *vdev);
 
+void virtioPCIPhysRead(VirtioPCIDevice *vpci, uint64_t addr, void *buf,
+                       size_t size);
+
 #endif /* !VBOX_INCLUDED_SRC_VirtIOModern_VirtioPCI_h */

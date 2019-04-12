@@ -27,6 +27,13 @@
 
 #define VIRTIO_F_VERSION_1 32
 
+#define VRING_DESC_F_NEXT 1
+#define VRING_DESC_F_WRITE 2
+#define VRING_DESC_F_INDIRECT 4
+#define VIRTQUEUE_READ_DESC_ERROR -1
+#define VIRTQUEUE_READ_DESC_DONE 0
+#define VIRTQUEUE_READ_DESC_MORE 1
+
 typedef struct VirtioPCIDevice VirtioPCIDevice;
 typedef struct VirtioDevice VirtioDevice;
 typedef struct VirtQueue VirtQueue;

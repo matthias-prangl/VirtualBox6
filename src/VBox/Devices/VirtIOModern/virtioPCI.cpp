@@ -491,4 +491,17 @@ void virtioPCINotify(VirtioDevice *vdev) {
   PDMDevHlpPCISetIrq(vdev->pciDev->CTX_SUFF(pDevIns), 0, PDM_IRQ_LEVEL_HIGH);
 }
 
+/**
+ * Read from a VirtioPCIDevices physical guest memory
+ *
+ * @param vpci  VirtioPCIDevice structure to read from
+ * @param addr  physical guest address to read from
+ * @param buf   buffer to read into
+ * @param size  amount of bytes to read
+ */
+void virtioPCIPhysRead(VirtioPCIDevice *vpci, uint64_t addr, void *buf,
+                       size_t size) {
+  PDMDevHlpPhysRead(vpci->CTX_SUFF(pDevIns), addr, buf, size);
+}
+
 #endif /* VBOX_DEVICE_STRUCT_TESTCASE */

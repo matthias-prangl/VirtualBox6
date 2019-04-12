@@ -84,3 +84,81 @@ int virtio_set_status(VirtioDevice *vdev, uint8_t status) {
   vdev->status = status;
   return 0;
 }
+
+/**
+ * Get the availiable index of the VirtQueue
+ *
+ * @param vq    virtqueue whose availiable ring should be read
+ * @return      index
+ */
+static uint16_t vring_avail_idx(VirtQueue *vq) {
+  uint16_t idx = 0;
+  virtioPCIPhysRead(vq->vdev->pciDev, vq->vring.avail + 2, &idx, sizeof(idx));
+  vq->shadow_avail_idx = idx;
+  return vq->shadow_avail_idx;
+}
+
+static int virtqueue_num_heads(VirtQueue *vq, unsigned int idx) {
+  uint16_t num_heads = vring_avail_idx(vq) - idx;
+  if (num_heads > vq->vring.num) {
+    return -1;
+  }
+  return num_heads;
+}
+
+/**
+ * Read the i-th availiable ring of the VirtQueue
+ *
+ * @param vq    virtqueue whose availiable ring should be read
+ * @param i     availiable ring index
+ * @return      availiable ring
+ */
+static uint16_t vring_avail_ring(VirtQueue *vq, int i) {
+  uint16_t ring = 0;
+  virtioPCIPhysRead(vq->vdev->pciDev,
+                    vq->vring.avail + 4 + i * sizeof(uint16_t), &ring,
+                    sizeof(ring));
+  return ring;
+}
+
+/**
+ * Read the i-th descriptor of the VirtQueue
+ *
+ * @param vq    virtqueue whose descriptor should be read
+ * @param desc  VRingDesc structure
+ * @param i     descriptor index to read
+ */
+static void vring_desc_read(VirtQueue *vq, VRingDesc *desc, int i) {
+  /*  Descriptors are linearly stored in physical guest memory */
+  virtioPCIPhysRead(vq->vdev->pciDev, vq->vring.desc + i * sizeof(VRingDesc),
+                    desc, sizeof(VRingDesc));
+}
+
+/**
+ * Read the next chained desctriptor of the virtqueue
+ *
+ * @param vq    virtqueue whose descriptor should be read
+ * @param desc  VRingDesc structure
+ * @param i     descriptor index to read
+ */
+static int virtqueue_read_next_desc(VirtQueue *vq, VRingDesc *desc,
+                                    unsigned int max, unsigned int *next) {
+  if (!(desc->flags & VRING_DESC_F_NEXT)) {
+    return VIRTQUEUE_READ_DESC_DONE;
+  }
+  *next = desc->next;
+  if (*next >= max) {
+    return VIRTQUEUE_READ_DESC_ERROR;
+  }
+  vring_desc_read(vq, desc, *next);
+  return VIRTQUEUE_READ_DESC_MORE;
+}
+
+static bool virtqueue_get_head(VirtQueue *vq, unsigned int idx,
+                               unsigned int *head) {
+  *head = vring_avail_ring(vq, idx % vq->vring.num);
+  if (*head >= vq->vring.num) {
+    return false;
+  }
+  return true;
+}
