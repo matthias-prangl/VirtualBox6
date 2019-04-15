@@ -4,6 +4,8 @@
 #pragma once
 #endif
 
+#include "virtioPCI.h"
+
 #include <array>
 #include <iprt/sg.h>
 #include <iprt/types.h>
@@ -43,10 +45,12 @@ typedef struct VirtQueueElement {
   uint32_t index;
   uint32_t out_num;
   uint32_t in_num;
-  uint64_t *in_addr;
-  uint64_t *out_addr;
-  RTSGBUF *in_sg;
-  RTSGBUF *out_sg;
+  uint64_t in_addr[VIRTIO_QUEUE_MAX];
+  uint64_t out_addr[VIRTIO_QUEUE_MAX];
+  RTSGSEG in_sg[VIRTIO_QUEUE_MAX];
+  RTSGSEG out_sg[VIRTIO_QUEUE_MAX];
+  PGMPAGEMAPLOCK in_lock[VIRTIO_QUEUE_MAX];
+  PGMPAGEMAPLOCK out_lock[VIRTIO_QUEUE_MAX];
 } VirtQueueElement;
 
 typedef struct VRingDesc {
@@ -132,4 +136,6 @@ void virtio_queue_notify(VirtioDevice *vdev, int n);
 void virtio_queue_set_rings(VirtioDevice *vdev, int n, uint64_t desc,
                             uint64_t avail, uint64_t used);
 void virtio_notify(VirtioDevice *vdev, VirtQueue *vq);
+void *virtqueue_pop(VirtQueue *vq, size_t sz);
+void virtqueue_push(VirtQueue *vq, VirtQueueElement *vqe, unsigned int len);
 #endif // VBOX_INCLUDED_SRC_VirtIOModern_virtio_h

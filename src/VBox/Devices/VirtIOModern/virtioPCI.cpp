@@ -504,4 +504,17 @@ void virtioPCIPhysRead(VirtioPCIDevice *vpci, uint64_t addr, void *buf,
   PDMDevHlpPhysRead(vpci->CTX_SUFF(pDevIns), addr, buf, size);
 }
 
+/**
+ * Write to a VirtioPCIDevices physical guest memory
+ *
+ * @param vpci  VirtioPCIDevice structure to write to
+ * @param addr  physical guest address to write to
+ * @param buf   data to write
+ * @param size  amount of bytes write
+ */
+void virtioPCIPhysWrite(VirtioPCIDevice *vpci, uint64_t addr, void *buf,
+                        size_t size) {
+  PDMDevHlpPhysWrite(vpci->CTX_SUFF(pDevIns), addr, buf, size);
+}
+
 #endif /* VBOX_DEVICE_STRUCT_TESTCASE */

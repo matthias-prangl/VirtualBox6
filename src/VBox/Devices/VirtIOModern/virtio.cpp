@@ -1,6 +1,7 @@
+#include "virtio.h"
+#include "virtioPCI.h"
 #include <errno.h>
 #include <iprt/assert.h>
-#include "virtio.h"
 
 VirtQueue *virtio_add_queue(VirtioDevice *vdev, uint32_t queue_size,
                             VirtioHandleQueue handle_queue) {
@@ -19,7 +20,20 @@ VirtQueue *virtio_add_queue(VirtioDevice *vdev, uint32_t queue_size,
   return &(*it);
 }
 
+static void virtio_set_isr(VirtioDevice *vdev, int val) {
+  uint8_t old = ASMAtomicReadU8(&vdev->isr);
+  /* Do not write ISR if it does not change, so that its cacheline remains
+   * shared in the common case where the guest does not read it.
+   */
+  if ((old & val) != val) {
+    val |= old;
+    ASMAtomicWriteU8(&vdev->isr, val);
+  }
+}
+
 void virtio_notify(VirtioDevice *vdev, VirtQueue *vq) {
+  virtio_set_isr(vdev, 0x01);
+  // TODO: check if virtio should notify
   vdev->virtio_notify_bus(vdev);
 }
 
@@ -161,4 +175,117 @@ static bool virtqueue_get_head(VirtQueue *vq, unsigned int idx,
     return false;
   }
   return true;
+}
+
+static void vring_used_write(VirtQueue *vq, VRingUsedElem *uelem, int i) {
+  virtioPCIPhysWrite(vq->vdev->pciDev,
+                     vq->vring.used + 4 + i * sizeof(VRingUsedElem), uelem,
+                     sizeof(VRingUsedElem));
+}
+
+static void virtqueue_unmap_sg(VirtQueue *vq, VirtQueueElement *vqe) {
+  PPDMDEVINSR3 devins = vq->vdev->pciDev->pDevInsR3;
+  for (unsigned int i = 0; i < vqe->out_num; i++) {
+    PDMDevHlpPhysReleasePageMappingLock(devins, &vqe->out_lock[i]);
+  }
+  for (unsigned int i = 0; i < vqe->in_num; i++) {
+    PDMDevHlpPhysReleasePageMappingLock(devins, &vqe->in_lock[i]);
+  }
+}
+
+static void virtqueue_fill(VirtQueue *vq, VirtQueueElement *vqe,
+                           unsigned int len, unsigned int idx) {
+  VRingUsedElem uelem;
+  virtqueue_unmap_sg(vq, vqe);
+
+  if (vq->vdev->broken) {
+    return;
+  }
+  if (!vq->vring.used) {
+    return;
+  }
+  idx = (idx + vq->used_idx) % vq->vring.num;
+  uelem.id = vqe->index;
+  uelem.len = len;
+  vring_used_write(vq, &uelem, idx);
+}
+
+static void virtqueue_map_sg(VirtQueue *vq, RTSGSEG *sg, uint64_t *addr,
+                             size_t num_sg, PGMPAGEMAPLOCK *lock) {
+  PPDMDEVINSR3 devins = vq->vdev->pciDev->pDevInsR3;
+  for (int i = 0; i < num_sg; i++) {
+    PDMDevHlpPhysGCPhys2CCPtr(devins, addr[i], 0, &sg[i].pvSeg, &lock[i]);
+  }
+}
+
+static inline void vring_used_idx_set(VirtQueue *vq, uint16_t val) {
+  virtioPCIPhysWrite(vq->vdev->pciDev, vq->vring.used + 2, &val,
+                     sizeof(uint16_t));
+  vq->used_idx = val;
+}
+
+static void virtqueue_flush(VirtQueue *vq, unsigned int count) {
+  uint16_t old = vq->used_idx;
+  uint16_t current = old + count;
+
+  vring_used_idx_set(vq, current);
+  vq->inuse -= count;
+}
+
+void virtqueue_push(VirtQueue *vq, VirtQueueElement *vqe, unsigned int len) {
+  virtqueue_fill(vq, vqe, len, 0);
+  virtqueue_flush(vq, 1);
+}
+
+void *virtqueue_pop(VirtQueue *vq, size_t sz) {
+  unsigned int max = vq->vring.num;
+  VRingDesc desc = {0};
+  VirtQueueElement *vqe =
+      (VirtQueueElement *)calloc(1, sizeof(VirtQueueElement));
+  unsigned int i, head;
+  int rc = 0;
+
+  if (vq->inuse >= vq->vring.num) {
+    // virtqueue size exceeded
+    goto done;
+  }
+
+  if (!virtqueue_get_head(vq, vq->last_avail_idx++, &head)) {
+    goto done;
+  }
+
+  i = head;
+
+  vring_desc_read(vq, &desc, i);
+  if (desc.flags & VRING_DESC_F_INDIRECT) {
+    if (!desc.len || (desc.len % sizeof(VRingDesc))) {
+      // invalid indirect buffer table size
+      goto done;
+    }
+    max = desc.len / sizeof(VRingDesc);
+    i = 0;
+    vring_desc_read(vq, &desc, i);
+  }
+
+  do {
+    RTSGSEG *sg;
+    if (desc.flags & VRING_DESC_F_WRITE) {
+      vqe->in_addr[vqe->in_num] = desc.addr;
+      sg = &vqe->in_sg[vqe->in_num++];
+    } else {
+      vqe->out_addr[vqe->out_num] = desc.addr;
+      sg = &vqe->out_sg[vqe->out_num++];
+    }
+    sg->cbSeg = desc.len;
+
+    rc = virtqueue_read_next_desc(vq, &desc, max, &i);
+  } while (rc == VIRTQUEUE_READ_DESC_MORE);
+
+  virtqueue_map_sg(vq, vqe->in_sg, vqe->in_addr, vqe->in_num, vqe->in_lock);
+  virtqueue_map_sg(vq, vqe->out_sg, vqe->out_addr, vqe->out_num, vqe->out_lock);
+  vqe->index = head;
+  vq->inuse++;
+
+done:
+  return vqe;
 }
