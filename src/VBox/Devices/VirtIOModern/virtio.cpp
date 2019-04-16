@@ -117,6 +117,9 @@ static int virtqueue_num_heads(VirtQueue *vq, unsigned int idx) {
   if (num_heads > vq->vring.num) {
     return -1;
   }
+  if (num_heads) {
+    RT_UNTRUSTED_VALIDATED_FENCE();
+  }
   return num_heads;
 }
 
@@ -161,6 +164,7 @@ static int virtqueue_read_next_desc(VirtQueue *vq, VRingDesc *desc,
     return VIRTQUEUE_READ_DESC_DONE;
   }
   *next = desc->next;
+  RT_UNTRUSTED_NONVOLATILE_COPY_FENCE();
   if (*next >= max) {
     return VIRTQUEUE_READ_DESC_ERROR;
   }
@@ -225,6 +229,7 @@ static inline void vring_used_idx_set(VirtQueue *vq, uint16_t val) {
 }
 
 static void virtqueue_flush(VirtQueue *vq, unsigned int count) {
+  RT_UNTRUSTED_NONVOLATILE_COPY_FENCE();
   uint16_t old = vq->used_idx;
   uint16_t current = old + count;
 
@@ -244,6 +249,8 @@ void *virtqueue_pop(VirtQueue *vq, size_t sz) {
       (VirtQueueElement *)calloc(1, sizeof(VirtQueueElement));
   unsigned int i, head;
   int rc = 0;
+
+  RT_UNTRUSTED_VALIDATED_FENCE();
 
   if (vq->inuse >= vq->vring.num) {
     // virtqueue size exceeded
