@@ -121,7 +121,9 @@ typedef struct VirtioDevice {
   void (*virtio_notify_bus)(VirtioDevice *pciDev);
   void (*reset)(VirtioDevice *vdev);
   void (*get_config)(VirtioDevice *vdev, uint8_t *config);
-  void (*set_config)(VirtioDevice *vdev, const uint8_t *config);
+  void (*set_config)(VirtioDevice *vdev, uint8_t *config);
+  void (*set_features)(VirtioDevice *vdev, uint64_t features);
+  uint64_t (*get_features)(VirtioDevice *vdev, uint64_t features);
 } VirtioDevice;
 
 VirtQueue *virtio_add_queue(VirtioDevice *vdev, uint32_t queue_size,
@@ -138,4 +140,14 @@ void virtio_queue_set_rings(VirtioDevice *vdev, int n, uint64_t desc,
 void virtio_notify(VirtioDevice *vdev, VirtQueue *vq);
 void *virtqueue_pop(VirtQueue *vq, size_t sz);
 void virtqueue_push(VirtQueue *vq, VirtQueueElement *vqe, unsigned int len);
+void virtio_reset(VirtioDevice *vdev);
+uint32_t virtio_config_modern_readb(VirtioDevice *vdev, uint32_t addr);
+uint32_t virtio_config_modern_readw(VirtioDevice *vdev, uint32_t addr);
+uint32_t virtio_config_modern_readl(VirtioDevice *vdev, uint32_t addr);
+void virtio_config_modern_writeb(VirtioDevice *vdev, uint32_t addr,
+                                 uint32_t data);
+void virtio_config_modern_writew(VirtioDevice *vdev, uint32_t addr,
+                                 uint32_t data);
+void virtio_config_modern_writel(VirtioDevice *vdev, uint32_t addr,
+                                 uint32_t data);
 #endif // VBOX_INCLUDED_SRC_VirtIOModern_virtio_h

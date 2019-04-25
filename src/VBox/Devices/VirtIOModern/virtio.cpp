@@ -84,6 +84,9 @@ static int virtio_set_features_nocheck(VirtioDevice *vdev, uint64_t val) {
   bool bad = (val & ~(vdev->host_features)) != 0;
 
   val &= vdev->host_features;
+  if (vdev->set_features) {
+    vdev->set_features(vdev, val);
+  }
   vdev->guest_features = val;
   return bad ? -1 : 0;
 }
@@ -237,16 +240,29 @@ static void virtqueue_flush(VirtQueue *vq, unsigned int count) {
   vq->inuse -= count;
 }
 
+/**
+ * Add an VirtQueueElement to the VirtQueue
+ *
+ * @param vq  The VirtQueue to which the element should be added
+ * @param vqe The VirtQueueElement to add
+ * @param len Number of bytes in the element
+ */
 void virtqueue_push(VirtQueue *vq, VirtQueueElement *vqe, unsigned int len) {
   virtqueue_fill(vq, vqe, len, 0);
   virtqueue_flush(vq, 1);
 }
 
+/**
+ * Retrieve the next VirtQueueElement from the VirtQueue.
+ * Allocation of the VirtQueueElement happens in this function.
+ *
+ * @param vq  The VirtQueue from which to get the next element
+ * @param sz  Size of the element
+ */
 void *virtqueue_pop(VirtQueue *vq, size_t sz) {
   unsigned int max = vq->vring.num;
   VRingDesc desc = {0};
-  VirtQueueElement *vqe =
-      (VirtQueueElement *)calloc(1, sizeof(VirtQueueElement));
+  VirtQueueElement *vqe = (VirtQueueElement *)calloc(1, sz);
   unsigned int i, head;
   int rc = 0;
 
@@ -295,4 +311,160 @@ void *virtqueue_pop(VirtQueue *vq, size_t sz) {
 
 done:
   return vqe;
+}
+
+/**
+ * Reset the VirtioDevice and all its VirtQueues
+ *
+ * @param vdev    VirtioDevice to reset
+ */
+void virtio_reset(VirtioDevice *vdev) {
+  virtio_set_status(vdev, 0);
+
+  if (vdev->reset)
+    vdev->reset(vdev);
+
+  vdev->broken = false;
+  vdev->guest_features = 0;
+  vdev->queue_select = 0;
+  vdev->status = 0;
+  ASMAtomicWriteU8(&vdev->isr, 0);
+
+  for (auto it = vdev->vq.begin(); it != vdev->vq.end(); it++) {
+
+    it->vring.desc = 0;
+    it->vring.avail = 0;
+    it->vring.used = 0;
+    it->last_avail_idx = 0;
+    it->shadow_avail_idx = 0;
+    it->used_idx = 0;
+    it->signalled_used = 0;
+    it->signalled_used_valid = false;
+    it->notification = true;
+    it->vring.num = it->vring.num_default;
+    it->inuse = 0;
+  }
+}
+
+/**
+ * Read a byte from the VirtioDevices configuration space
+ *
+ * @param vdev  VirtioDevice from which the config should be read
+ * @param addr  offset in the devices configuration
+ */
+uint32_t virtio_config_modern_readb(VirtioDevice *vdev, uint32_t addr) {
+  uint8_t *config_ptr = reinterpret_cast<uint8_t *>(vdev->config);
+  if (addr + sizeof(uint8_t) > vdev->config_len) {
+    return (uint32_t)-1;
+  }
+
+  vdev->get_config(vdev, config_ptr);
+
+  uint8_t val = *reinterpret_cast<uint8_t *>(config_ptr + addr);
+  return val;
+}
+
+/**
+ * Read a word from the VirtioDevices configuration space
+ *
+ * @param vdev  VirtioDevice from which the config should be read
+ * @param addr  offset in the devices configuration
+ */
+uint32_t virtio_config_modern_readw(VirtioDevice *vdev, uint32_t addr) {
+  uint8_t *config_ptr = reinterpret_cast<uint8_t *>(vdev->config);
+  if (addr + sizeof(uint16_t) > vdev->config_len) {
+    return (uint32_t)-1;
+  }
+
+  vdev->get_config(vdev, config_ptr);
+
+  uint16_t val = RT_H2LE_U16(*reinterpret_cast<uint16_t *>(config_ptr + addr));
+  return val;
+}
+
+/**
+ * Read a long word from the VirtioDevices configuration space
+ *
+ * @param vdev  VirtioDevice from which the config should be read
+ * @param addr  offset in the devices configuration
+ */
+uint32_t virtio_config_modern_readl(VirtioDevice *vdev, uint32_t addr) {
+  uint8_t *config_ptr = reinterpret_cast<uint8_t *>(vdev->config);
+  if (addr + sizeof(uint32_t) > vdev->config_len) {
+    return (uint32_t)-1;
+  }
+
+  vdev->get_config(vdev, config_ptr);
+
+  uint32_t val = RT_H2LE_U32(*reinterpret_cast<uint32_t *>(config_ptr + addr));
+  return val;
+}
+
+/**
+ * Write a byte to the VirtioDevices configuration space.
+ * Takes care of endian conversion
+ *
+ * @param vdev  VirtioDevice whose config should be changed
+ * @param addr  offset in the devices configuration
+ * @param data  value to write
+ */
+void virtio_config_modern_writeb(VirtioDevice *vdev, uint32_t addr,
+                                 uint32_t data) {
+  uint8_t val = static_cast<uint8_t>(data);
+  uint8_t *config_ptr = reinterpret_cast<uint8_t *>(vdev->config);
+
+  if (addr + sizeof(val) > vdev->config_len) {
+    return;
+  }
+  *reinterpret_cast<uint8_t *>(config_ptr + addr) = val;
+
+  if (vdev->set_config) {
+    vdev->set_config(vdev, config_ptr);
+  }
+}
+
+/**
+ * Write a word to the VirtioDevices configuration space.
+ * Takes care of endian conversion
+ *
+ * @param vdev  VirtioDevice whose config should be changed
+ * @param addr  offset in the devices configuration
+ * @param data  value to write
+ */
+void virtio_config_modern_writew(VirtioDevice *vdev, uint32_t addr,
+                                 uint32_t data) {
+  uint16_t val = static_cast<uint8_t>(data);
+  uint8_t *config_ptr = reinterpret_cast<uint8_t *>(vdev->config);
+
+  if (addr + sizeof(val) > vdev->config_len) {
+    return;
+  }
+  *reinterpret_cast<uint16_t *>(config_ptr + addr) = RT_H2LE_U16(val);
+
+  if (vdev->set_config) {
+    vdev->set_config(vdev, config_ptr);
+  }
+}
+
+/**
+ * Write a long word to the VirtioDevices configuration space.
+ * Takes care of endian conversion
+ *
+ * @param vdev  VirtioDevice whose config should be changed
+ * @param addr  offset in the devices configuration
+ * @param data  value to write
+ */
+void virtio_config_modern_writel(VirtioDevice *vdev, uint32_t addr,
+                                 uint32_t data) {
+  uint32_t val = static_cast<uint8_t>(data);
+  uint8_t *config_ptr = reinterpret_cast<uint8_t *>(vdev->config);
+
+  if (addr + sizeof(val) > vdev->config_len) {
+    return;
+  }
+  *reinterpret_cast<uint32_t *>(config_ptr + addr) = RT_H2LE_U32(val);
+
+  if (vdev->set_config) {
+    vdev->set_config(vdev, config_ptr);
+  }
 }

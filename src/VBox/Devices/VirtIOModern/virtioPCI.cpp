@@ -128,25 +128,21 @@ virtioPCIDeviceCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
   VirtioPCIDevice *vpciDev = PDMINS_2_DATA(pDevIns, VirtioPCIDevice *);
   VirtioDevice *vdev = vpciDev->vdev;
   uint8_t addr = static_cast<uint8_t>(GCPhysAddr);
-  uint64_t write_data = *(uint64_t *)pv;
-  uint8_t *cfg = static_cast<uint8_t *>(vdev->config);
-
-  if (addr + cb > vdev->config_len) {
-    return 0;
-  }
+  uint32_t write_data = *reinterpret_cast<uint32_t *>(const_cast<void *>(pv));
 
   switch (cb) {
+  case 1:
+    virtio_config_modern_writeb(vdev, addr, write_data);
+    break;
   case 2:
-    write_data = RT_LE2H_U16(write_data);
+    virtio_config_modern_writeb(vdev, addr, write_data);
     break;
   case 4:
-    write_data = RT_LE2H_U32(write_data);
+    virtio_config_modern_writeb(vdev, addr, write_data);
     break;
   default:
     break;
   }
-
-  memcpy(cfg + addr, &write_data, cb);
 
   RT_NOREF(pvUser);
   return VINF_SUCCESS;
@@ -159,19 +155,17 @@ virtioPCIDeviceCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
   VirtioDevice *vdev = vpciDev->vdev;
   uint8_t addr = static_cast<uint8_t>(GCPhysAddr);
   uint64_t *read_data = static_cast<uint64_t *>(pv);
-  uint8_t *cfg = static_cast<uint8_t *>(vdev->config);
+  *read_data &= 0x00000000;
 
-  if (addr + cb > vdev->config_len) {
-    return 0;
-  }
-
-  memcpy(read_data, cfg + addr, cb);
   switch (cb) {
+  case 1:
+    *read_data = virtio_config_modern_readb(vdev, addr);
+    break;
   case 2:
-    *read_data = RT_H2LE_U16(*read_data);
+    *read_data = virtio_config_modern_readw(vdev, addr);
     break;
   case 4:
-    *read_data = RT_H2LE_U32(*read_data);
+    *read_data = virtio_config_modern_readl(vdev, addr);
     break;
   default:
     break;
@@ -239,6 +233,8 @@ void virtioPCIReset(VirtioPCIDevice *vpciDev) {
     it->used[0] = it->used[1] = 0;
   }
   vdev->status = 0x00;
+  if (vdev)
+    virtio_reset(vdev);
 }
 
 /**
@@ -246,7 +242,7 @@ void virtioPCIReset(VirtioPCIDevice *vpciDev) {
  *
  * @returns VBox status code.
  * @param   pDevIns      Pointer to the PDM device instance
- * @param   vpciDev       Pointer to the VirtioPCIDevice
+ * @param   vpciDev      Pointer to the VirtioPCIDevice
  * @param   iInstance    Device instance number
  * @param   pcszNameFmt  Device description
  * @param   uDeviceId    PCI device ID
