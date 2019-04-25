@@ -252,6 +252,25 @@ void virtqueue_push(VirtQueue *vq, VirtQueueElement *vqe, unsigned int len) {
   virtqueue_flush(vq, 1);
 }
 
+/* Fetch avail_idx from VQ memory only when we really need to know if
+ * guest has added some buffers.
+ * Called within rcu_read_lock().  */
+static int virtio_queue_empty_rcu(VirtQueue *vq) {
+  if (vq->vdev->broken) {
+    return 1;
+  }
+
+  if (!vq->vring.avail) {
+    return 1;
+  }
+
+  if (vq->shadow_avail_idx != vq->last_avail_idx) {
+    return 0;
+  }
+
+  return vring_avail_idx(vq) == vq->last_avail_idx;
+}
+
 /**
  * Retrieve the next VirtQueueElement from the VirtQueue.
  * Allocation of the VirtQueueElement happens in this function.
@@ -262,9 +281,13 @@ void virtqueue_push(VirtQueue *vq, VirtQueueElement *vqe, unsigned int len) {
 void *virtqueue_pop(VirtQueue *vq, size_t sz) {
   unsigned int max = vq->vring.num;
   VRingDesc desc = {0};
-  VirtQueueElement *vqe = (VirtQueueElement *)calloc(1, sz);
+  VirtQueueElement *vqe = NULL;
   unsigned int i, head;
   int rc = 0;
+
+  if (virtio_queue_empty_rcu(vq)) {
+    goto done;
+  }
 
   RT_UNTRUSTED_VALIDATED_FENCE();
 
@@ -289,6 +312,8 @@ void *virtqueue_pop(VirtQueue *vq, size_t sz) {
     i = 0;
     vring_desc_read(vq, &desc, i);
   }
+
+  vqe = (VirtQueueElement *)calloc(1, sz);
 
   do {
     RTSGSEG *sg;
