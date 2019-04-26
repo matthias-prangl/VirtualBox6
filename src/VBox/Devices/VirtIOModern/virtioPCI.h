@@ -133,7 +133,6 @@ typedef struct VirtioPCIDevice {
   uint8_t config_generation;
 
   uint16_t queue_select;
-  uint16_t queue_msix_vector;
   uint16_t queue_notify_off;
   std::array<VirtioPCIQueue, VIRTIO_QUEUE_MAX> vqs;
   VirtioDevice *vdev;

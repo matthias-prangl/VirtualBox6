@@ -96,7 +96,6 @@ typedef struct VirtQueue {
   bool notification;
   uint16_t queue_idx;
   uint32_t inuse;
-  uint16_t vector;
   VirtioDevice *vdev;
   VirtioHandleQueue handle_queue;
 } VirtQueue;
