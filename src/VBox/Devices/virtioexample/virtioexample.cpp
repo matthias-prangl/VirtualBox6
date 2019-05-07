@@ -1,16 +1,40 @@
 #include "virtioexample.h"
+#include "../VirtIOModern/rtsgseg_helpers.h"
+#include "../VirtIOModern/virtio.h"
 #include "../VirtIOModern/virtioPCI.h"
 #include <VBox/version.h>
 #include <iprt/mem.h>
 #include <iprt/uuid.h>
 
+static void *rcv_bufs[1024];
+static uint32_t rcv_count = 0;
 void handle_q1(VirtioDevice *vdev, VirtQueue *vq) {
-  RT_NOREF(vq, vdev);
+  VirtQueueElement *vqe =
+      (VirtQueueElement *)virtqueue_pop(vq, sizeof(VirtQueueElement));
+  if (vqe) {
+    rcv_bufs[rcv_count] = calloc(1, vqe->out_sg[0].cbSeg);
+    RTSGSEG_to_buf(vqe->out_sg, vqe->out_num, 0, rcv_bufs[rcv_count++],
+                   vqe->out_sg->cbSeg);
+    virtqueue_push(vq, vqe, 0);
+    virtio_notify(vdev, vq);
+    free(vqe);
+  }
   return;
 }
 
 void handle_q2(VirtioDevice *vdev, VirtQueue *vq) {
-  virtio_notify(vdev, vq);
+  VirtQueueElement *vqe =
+      (VirtQueueElement *)virtqueue_pop(vq, sizeof(VirtQueueElement));
+  if (vqe) {
+    rcv_count = rcv_count - 1;
+    size_t len = RTSGSEG_from_buf(vqe->in_sg, vqe->in_num, 0,
+                                  rcv_bufs[rcv_count], vqe->in_sg->cbSeg);
+
+    virtqueue_push(vq, vqe, static_cast<unsigned int>(len));
+    virtio_notify(vdev, vq);
+    free(rcv_bufs[rcv_count]);
+    free(vqe);
+  }
   return;
 }
 
@@ -19,7 +43,7 @@ void virtioexample_get_config(VirtioDevice *vdev, uint8_t *config) {
   return;
 }
 
-void virtioexample_set_config(VirtioDevice *vdev, const uint8_t *config) {
+void virtioexample_set_config(VirtioDevice *vdev, uint8_t *config) {
   RT_NOREF(vdev, config);
   return;
 }
@@ -54,13 +78,12 @@ virtioexampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   pThis->example_config.num_scanouts = 1;
 
   for (auto it = vdev->vq.begin(); it != vdev->vq.end(); it++) {
-    it->vector = 0;
     it->vdev = vdev;
     it->queue_idx = it - vdev->vq.begin();
   }
 
   pThis->vq1 = virtio_add_queue(&pThis->vdev, 256, &handle_q1);
-  pThis->vq2 = virtio_add_queue(&pThis->vdev, 16, &handle_q2);
+  pThis->vq2 = virtio_add_queue(&pThis->vdev, 256, &handle_q2);
 
   RT_NOREF(pCfg);
   return rc;

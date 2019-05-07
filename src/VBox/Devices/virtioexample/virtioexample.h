@@ -1,13 +1,13 @@
 #ifndef DEVEXAMPLE
 #define DEVEXAMPLE
 
-#include <VBox/vmm/pdmdev.h>
 #include "../VirtIOModern/virtio.h"
 #include "../VirtIOModern/virtioPCI.h"
+#include <VBox/vmm/pdmdev.h>
 
 #define VIRTIOEXAMPLE_NAME_FMT "virtioexample%d"
 #define VIRTIOEXAMPLE_PCI_CLASS 0x0300
-#define VIRTIOEXAMPLE_ID 16
+#define VIRTIOEXAMPLE_ID 21
 #define VIRTIOEXAMPLE_N_QUEUES 2
 
 // this is the configuration from the virtio-gpu for testing purposes
@@ -37,8 +37,8 @@ const PDMDEVREG g_virtioexample = {
     "VBoxDDR0.r0",              // don't care; only if PDM_DEVREG_FLAGS_RC set
     "virtio example Device.\n", // device description
     PDM_DEVREG_FLAGS_DEFAULT_BITS,
-    PDM_DEVREG_CLASS_MISC, // device class
-    ~0U,                   // max num. instances
+    PDM_DEVREG_CLASS_GRAPHICS, // device class
+    ~0U,                       // max num. instances
     sizeof(VirtioexampleState),
     virtioexampleConstruct, // pfnConstruct
     NULL,                   // pfnDestruct
