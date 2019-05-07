@@ -5,19 +5,18 @@
 
 VirtQueue *virtio_add_queue(VirtioDevice *vdev, uint32_t queue_size,
                             VirtioHandleQueue handle_queue) {
-
-  auto it = vdev->vq.begin();
-  for (; it != vdev->vq.end(); it++) {
-    if (it->vring.num == 0) {
+  int i;
+  for(i = 0; i < VIRTIO_QUEUE_MAX; i++) {
+    if(vdev->vq[i].vring.num == 0) {
       break;
     }
   }
 
-  it->vring.num = queue_size;
-  it->vring.num_default = queue_size;
-  it->vring.align = VIRTIO_QUEUE_ALIGN;
-  it->handle_queue = handle_queue;
-  return &(*it);
+  vdev->vq[i].vring.num = queue_size;
+  vdev->vq[i].vring.num_default = queue_size;
+  vdev->vq[i].vring.align = VIRTIO_QUEUE_ALIGN;
+  vdev->vq[i].handle_queue = handle_queue;
+  return &vdev->vq[i];
 }
 
 static void virtio_set_isr(VirtioDevice *vdev, int val) {
@@ -355,19 +354,18 @@ void virtio_reset(VirtioDevice *vdev) {
   vdev->status = 0;
   ASMAtomicWriteU8(&vdev->isr, 0);
 
-  for (auto it = vdev->vq.begin(); it != vdev->vq.end(); it++) {
-
-    it->vring.desc = 0;
-    it->vring.avail = 0;
-    it->vring.used = 0;
-    it->last_avail_idx = 0;
-    it->shadow_avail_idx = 0;
-    it->used_idx = 0;
-    it->signalled_used = 0;
-    it->signalled_used_valid = false;
-    it->notification = true;
-    it->vring.num = it->vring.num_default;
-    it->inuse = 0;
+  for(int i = 0; i < VIRTIO_QUEUE_MAX; i++) {
+    vdev->vq[i].vring.desc = 0;
+    vdev->vq[i].vring.avail = 0;
+    vdev->vq[i].vring.used = 0;
+    vdev->vq[i].last_avail_idx = 0;
+    vdev->vq[i].shadow_avail_idx = 0;
+    vdev->vq[i].used_idx = 0;
+    vdev->vq[i].signalled_used = 0;
+    vdev->vq[i].signalled_used_valid = false;
+    vdev->vq[i].notification = true;
+    vdev->vq[i].vring.num = vdev->vq[i].vring.num_default;
+    vdev->vq[i].inuse = 0;
   }
 }
 

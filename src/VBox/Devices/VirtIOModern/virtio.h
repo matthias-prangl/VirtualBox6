@@ -5,8 +5,6 @@
 #endif
 
 #include "virtioPCI.h"
-
-#include <array>
 #include <iprt/sg.h>
 #include <iprt/types.h>
 
@@ -112,7 +110,7 @@ typedef struct VirtioDevice {
   size_t config_len;
   void *config;
   uint32_t generation;
-  std::array<VirtQueue, VIRTIO_QUEUE_MAX> vq;
+  VirtQueue vq[VIRTIO_QUEUE_MAX];
   uint16_t device_id;
   bool vm_running;
   bool broken;

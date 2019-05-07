@@ -18,12 +18,8 @@
 
 #ifndef VBOX_INCLUDED_SRC_VirtIOModern_virtioPCI_h
 #define VBOX_INCLUDED_SRC_VirtIOModern_virtioPCI_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-#pragma once
-#endif
 
 #include <VBox/vmm/pdmdev.h>
-#include <array>
 #include <iprt/ctype.h>
 
 #define DEVICE_PCI_VENDOR_ID 0x1AF4
@@ -134,7 +130,7 @@ typedef struct VirtioPCIDevice {
 
   uint16_t queue_select;
   uint16_t queue_notify_off;
-  std::array<VirtioPCIQueue, VIRTIO_QUEUE_MAX> vqs;
+  VirtioPCIQueue vqs[VIRTIO_QUEUE_MAX];
   VirtioDevice *vdev;
 } VirtioPCIDevice;
 

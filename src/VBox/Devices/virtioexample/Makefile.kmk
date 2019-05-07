@@ -8,8 +8,8 @@ DLLS += virtioexample
 virtioexample_TEMPLATE = VBOXR3
 virtioexample_SOURCES = ../VirtIOModern/virtioPCI.cpp \
 						../VirtIOModern/virtio.cpp \
+						../VirtIOModern/rtsgseg_helpers.cpp \
 					    virtioexample.cpp
 					  
-virtioexample_LIBS = $(LIB_RUNTIME) $(LIB_VMM)
-
+virtioexample_LIBS := $(LIB_RUNTIME) $(LIB_VMM)
 include $(FILE_KBUILD_SUB_FOOTER)

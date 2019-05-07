@@ -225,12 +225,12 @@ virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
 
 void virtioPCIReset(VirtioPCIDevice *vpciDev) {
   VirtioDevice *vdev = vpciDev->vdev;
-  for (auto it = vpciDev->vqs.begin(); it != vpciDev->vqs.end(); it++) {
-    it->enabled = 0;
-    it->num = 0;
-    it->desc[0] = it->desc[1] = 0;
-    it->avail[0] = it->avail[1] = 0;
-    it->used[0] = it->used[1] = 0;
+  for (int i = 0; i < VIRTIO_QUEUE_MAX; i++) {
+    vpciDev->vqs[i].enabled = 0;
+    vpciDev->vqs[i].num = 0;
+    vpciDev->vqs[i].desc[0] = vpciDev->vqs[i].desc[1] = 0;
+    vpciDev->vqs[i].avail[0] = vpciDev->vqs[i].avail[1] = 0;
+    vpciDev->vqs[i].used[0] = vpciDev->vqs[i].used[1] = 0;
   }
   vdev->status = 0x00;
   if (vdev)

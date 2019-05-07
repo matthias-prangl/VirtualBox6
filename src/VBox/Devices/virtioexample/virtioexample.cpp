@@ -76,10 +76,10 @@ virtioexampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   vdev->virtio_notify_bus = virtioPCINotify;
   vdev->config = &pThis->example_config;
   pThis->example_config.num_scanouts = 1;
-
-  for (auto it = vdev->vq.begin(); it != vdev->vq.end(); it++) {
-    it->vdev = vdev;
-    it->queue_idx = it - vdev->vq.begin();
+  
+  for (int i = 0; i < VIRTIO_QUEUE_MAX; i++) {
+    vdev->vq[i].vdev = vdev;
+    vdev->vq[i].queue_idx = i;
   }
 
   pThis->vq1 = virtio_add_queue(&pThis->vdev, 256, &handle_q1);
