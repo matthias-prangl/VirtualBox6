@@ -1,0 +1,17 @@
+SUB_DEPTH = ../../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+#
+# virtioGPU
+#
+DLLS += virtioGPU
+virtioGPU_TEMPLATE = VBOXR3
+virtioGPU_SOURCES = ../VirtIOModern/virtioPCI.cpp \
+					../VirtIOModern/virtio.cpp \
+					../VirtIOModern/rtsgseg_helpers.cpp \
+					virtioGPU.cpp
+					  
+virtioGPU_LIBS = $(LIB_RUNTIME) $(LIB_VMM) C:/Users/matthias/source/cairo/Cairo-VS-master/projects/x64/Release/pixman.lib
+virtioGPU_INCS := C:/Users/matthias/source/pixman/include/pixman-1
+
+include $(FILE_KBUILD_SUB_FOOTER)
