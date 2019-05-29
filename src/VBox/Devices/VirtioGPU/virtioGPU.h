@@ -35,6 +35,7 @@ struct virtio_gpu_simple_resource {
   uint32_t scanout_bitmask;
   pixman_image_t *image;
   uint64_t hostmem;
+  PGMPAGEMAPLOCK *locks;
 };
 
 typedef struct DisplaySurface {

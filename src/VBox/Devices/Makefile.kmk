@@ -27,7 +27,8 @@ endif
 include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
 include $(PATH_SUB_CURRENT)/Audio/testcase/Makefile.kmk
 include $(PATH_SUB_CURRENT)/Input/testcase/Makefile.kmk
-include $(PATH_SUB_CURRENT)/DevExample/Makefile.kmk
+include $(PATH_SUB_CURRENT)/virtioexample/Makefile.kmk
+include $(PATH_SUB_CURRENT)/VirtioGPU/Makefile.kmk
 ifdef VBOX_WITH_TESTCASES
  include $(PATH_SUB_CURRENT)/Samples/Makefile.kmk
 endif
