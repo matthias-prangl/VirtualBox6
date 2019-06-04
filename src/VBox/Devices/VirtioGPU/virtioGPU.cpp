@@ -356,7 +356,8 @@ virtio_gpu_resource_attach_backing(VirtioGPU *vgpu,
     return;
   }
 
-  ret = virtio_gpu_create_mapping_iov(vgpu, &ab, cmd, &res->addrs, &res->iov);
+  ret = virtio_gpu_create_mapping_iov(vgpu, &ab, cmd, &res->addrs, &res->iov,
+                                      &res->locks);
   if (ret != 0) {
     cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
     return;

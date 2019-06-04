@@ -30,9 +30,21 @@ static void virtio_set_isr(VirtioDevice *vdev, int val) {
   }
 }
 
+static uint16_t vring_avail_flags(VirtQueue *vq) {
+  uint16_t flags = 0;
+  virtioPCIPhysRead(vq->vdev->pciDev, vq->vring.avail + 0, &flags, sizeof(flags));
+  return flags;
+}
+
+static bool virtio_should_notify(VirtQueue *vq) {
+  RT_UNTRUSTED_VALIDATED_FENCE();
+  return vring_avail_flags(vq);
+}
+
 void virtio_notify(VirtioDevice *vdev, VirtQueue *vq) {
   virtio_set_isr(vdev, 0x01);
-  // TODO: check if virtio should notify
+  if(!virtio_should_notify(vq))
+    return;
   vdev->virtio_notify_bus(vdev);
 }
 
