@@ -118,6 +118,7 @@ typedef struct VirtioGPU {
 
 DECLCALLBACK(int)
 virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg);
+DECLCALLBACK(int) virtioGPUDestruct(PPDMDEVINS pDevIns);
 
 const PDMDEVREG g_virtioGPU = {
     PDM_DEVREG_VERSION,
@@ -130,7 +131,7 @@ const PDMDEVREG g_virtioGPU = {
     1,                         // max num. instances
     sizeof(VirtioGPU),
     virtioGPUConstruct, // pfnConstruct
-    NULL,               // pfnDestruct
+    virtioGPUDestruct,  // pfnDestruct
     NULL,               // pfnRelocate
     NULL,               // pfnMemSetup.
     NULL,               // pfnPowerOn

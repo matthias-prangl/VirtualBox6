@@ -277,6 +277,18 @@ void virtio_gpu_cleanup_mapping_iov(VirtioGPU *vgpu, struct RTSGSEG *iov,
   free(iov);
 }
 
+static void virtio_gpu_cleanup_mapping(VirtioGPU *vgpu,
+                                       struct virtio_gpu_simple_resource *res)
+{
+    virtio_gpu_cleanup_mapping_iov(vgpu, res->iov, res->iov_cnt, res->locks);
+    res->iov = NULL;
+    res->iov_cnt = 0;
+    free(res->addrs);
+    free(res->locks);
+    res->locks = NULL;
+    res->addrs = NULL;
+}
+
 int virtio_gpu_create_mapping_iov(VirtioGPU *vgpu,
                                   struct virtio_gpu_resource_attach_backing *ab,
                                   struct virtio_gpu_ctrl_command *cmd,
@@ -378,9 +390,15 @@ static void virtio_gpu_resource_destroy(VirtioGPU *vgpu,
     }
 
     pixman_image_unref(res->image);
-    // virtio_gpu_cleanup_mapping(g, res);
-    // QTAILQ_REMOVE(&g->reslist, res, next);
+    virtio_gpu_cleanup_mapping(vgpu, res);
+    
+    for (auto it = vgpu->reslist.begin(); it != vgpu->reslist.end(); it++) {
+      if(*it == res) {
+        vgpu->reslist.erase(it);
+        break;
     vgpu->hostmem -= res->hostmem;
+      }
+    }
     free(res);
 }
 
@@ -399,19 +417,6 @@ static void virtio_gpu_resource_unref(VirtioGPU *vgpu,
     }
     virtio_gpu_resource_destroy(vgpu, res);
 }
-
-static void virtio_gpu_cleanup_mapping(VirtioGPU *vgpu,
-                                       struct virtio_gpu_simple_resource *res)
-{
-    virtio_gpu_cleanup_mapping_iov(vgpu, res->iov, res->iov_cnt, res->locks);
-    res->iov = NULL;
-    res->iov_cnt = 0;
-    free(res->addrs);
-    free(res->locks);
-    res->locks = NULL;
-    res->addrs = NULL;
-}
-
 
 static void
 virtio_gpu_resource_detach_backing(VirtioGPU *vgpu,
@@ -440,6 +445,9 @@ void virtioGPU_handle_ctrl(VirtioDevice *vdev, VirtQueue *vq) {
   struct virtio_gpu_ctrl_command *cmd =
       reinterpret_cast<struct virtio_gpu_ctrl_command *>(
           virtqueue_pop(vq, sizeof(struct virtio_gpu_ctrl_command)));
+  if(!cmd) {
+    return;
+  }
   cmd->vq = vq;
   cmd->error = 0;
   cmd->finished = false;
@@ -528,12 +536,13 @@ int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   if (!vdev->config) {
     rc = VERR_NO_MEMORY;
   }
+  RTCritSectInit(&vdev->critsect);
 
   vgpu->virtio_config.num_scanouts = RT_H2LE_U32(vgpu->conf.max_outputs);
   vgpu->virtio_config.num_capsets = 0;
   vgpu->req_state[0].width = vgpu->conf.xres;
   vgpu->req_state[0].height = vgpu->conf.yres;
-  for(int i = 0; i < VIRTIO_QUEUE_MAX; i++) {
+  for (int i = 0; i < VIRTIO_QUEUE_MAX; i++) {
     vdev->vq[i].vdev = vdev;
     vdev->vq[i].queue_idx = i;
   }
@@ -545,6 +554,15 @@ int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
 
   RT_NOREF(pCfg);
   return rc;
+}
+
+int virtioGPUDestruct(PPDMDEVINS pDevIns) {
+  VirtioGPU *vgpu = PDMINS_2_DATA(pDevIns, VirtioGPU *);
+  virtioPCIUnmap(&vgpu->pciDev);
+  if(RTCritSectIsInitialized(&vgpu->vdev.critsect)) {
+    RTCritSectDelete(&vgpu->vdev.critsect);
+  }
+  return VINF_SUCCESS;
 }
 
 extern "C" DECLEXPORT(int)

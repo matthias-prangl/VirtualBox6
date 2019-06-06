@@ -114,6 +114,7 @@ typedef struct VirtioPCIDevice {
 
   /** TODO */
   PDMPCIDEV pciDevice;
+  RTGCPHYS mmioRegion;
 
 #if HC_ARCH_BITS != 64
   uint32_t padding3;
@@ -180,5 +181,7 @@ void virtioPCIPhysRead(VirtioPCIDevice *vpci, uint64_t addr, void *buf,
 
 void virtioPCIPhysWrite(VirtioPCIDevice *vpci, uint64_t addr, void *buf,
                         size_t size);
+
+void virtioPCIUnmap(VirtioPCIDevice *vpciDev);
 
 #endif /* !VBOX_INCLUDED_SRC_VirtIOModern_VirtioPCI_h */

@@ -38,13 +38,18 @@ static uint16_t vring_avail_flags(VirtQueue *vq) {
 
 static bool virtio_should_notify(VirtQueue *vq) {
   RT_UNTRUSTED_VALIDATED_FENCE();
-  return vring_avail_flags(vq);
+  return !(vring_avail_flags(vq) & 1);
 }
 
 void virtio_notify(VirtioDevice *vdev, VirtQueue *vq) {
-  virtio_set_isr(vdev, 0x01);
-  if(!virtio_should_notify(vq))
+  RTCritSectEnter(&vdev->critsect);
+  bool should_notify = virtio_should_notify(vq);
+  RTCritSectLeave(&vdev->critsect);
+
+  if(!should_notify)
     return;
+    
+  virtio_set_isr(vdev, 0x01);
   vdev->virtio_notify_bus(vdev);
 }
 
@@ -259,8 +264,10 @@ static void virtqueue_flush(VirtQueue *vq, unsigned int count) {
  * @param len Number of bytes in the element
  */
 void virtqueue_push(VirtQueue *vq, VirtQueueElement *vqe, unsigned int len) {
+  RTCritSectEnter(&vq->vdev->critsect);
   virtqueue_fill(vq, vqe, len, 0);
   virtqueue_flush(vq, 1);
+  RTCritSectLeave(&vq->vdev->critsect);
 }
 
 /* Fetch avail_idx from VQ memory only when we really need to know if
@@ -296,6 +303,7 @@ void *virtqueue_pop(VirtQueue *vq, size_t sz) {
   unsigned int i, head;
   int rc = 0;
 
+  RTCritSectEnter(&vq->vdev->critsect);
   if (virtio_queue_empty_rcu(vq)) {
     goto done;
   }
@@ -346,6 +354,7 @@ void *virtqueue_pop(VirtQueue *vq, size_t sz) {
   vq->inuse++;
 
 done:
+  RTCritSectLeave(&vq->vdev->critsect);
   return vqe;
 }
 

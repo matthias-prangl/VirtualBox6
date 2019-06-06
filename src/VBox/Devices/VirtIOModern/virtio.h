@@ -7,6 +7,7 @@
 #include "virtioPCI.h"
 #include <iprt/sg.h>
 #include <iprt/types.h>
+#include <iprt/critsect.h>
 
 #define VIRTIO_QUEUE_ALIGN 4096
 #define VIRTIO_QUEUE_MAX 1024
@@ -100,6 +101,8 @@ typedef struct VirtQueue {
 
 typedef struct VirtioDevice {
   VirtioPCIDevice *pciDev;
+  //Should probably use PDMCRITSECT if this ends up working
+  RTCRITSECT critsect;
   const char *name;
   uint8_t status;
   uint8_t isr;

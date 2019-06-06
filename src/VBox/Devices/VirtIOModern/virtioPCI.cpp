@@ -200,6 +200,9 @@ virtioPCINotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
 DECLCALLBACK(int)
 virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
              RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType) {
+  VirtioPCIDevice *vpciDev = PDMINS_2_DATA(pDevIns, VirtioPCIDevice *);
+  vpciDev->mmioRegion = GCPhysAddress;
+  
   int rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress + 0x0000, 0x1000, NULL,
                                  0, virtioPCICommonCfgWrite,
                                  virtioPCICommonCfgRead, "VirtioPCICommonCfg");
@@ -221,6 +224,10 @@ virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
   Assert(rc == VINF_SUCCESS);
   RT_NOREF(enmType, cb, iRegion, pPciDev);
   return rc;
+}
+
+void virtioPCIUnmap(VirtioPCIDevice *vpciDev) {
+  PDMDevHlpMMIODeregister(vpciDev->pDevInsR3, vpciDev->mmioRegion, 0x4000);
 }
 
 void virtioPCIReset(VirtioPCIDevice *vpciDev) {
