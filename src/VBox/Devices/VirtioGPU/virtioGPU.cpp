@@ -184,6 +184,27 @@ static void virtio_gpu_unref_resource(pixman_image_t *image, void *data) {
 #define DIV_ROUND_UP(n, d) (((n) + (d)-1) / (d))
 #endif
 
+static void virtio_gpu_disable_scanout(VirtioGPU *vgpu, int scanout_id)
+{
+    struct virtio_gpu_scanout *scanout = &vgpu->scanout[scanout_id];
+    struct virtio_gpu_simple_resource *res;
+    DisplaySurface *ds = NULL;
+
+    if (scanout->resource_id == 0) {
+        return;
+    }
+
+    res = virtio_gpu_find_resource(vgpu, scanout->resource_id);
+    if (res) {
+        res->scanout_bitmask &= ~(1 << scanout_id);
+    }
+
+    scanout->resource_id = 0;
+    scanout->ds = NULL;
+    scanout->width = 0;
+    scanout->height = 0;
+}
+
 static void virtio_gpu_set_scanout(VirtioGPU *vgpu,
                                    struct virtio_gpu_ctrl_command *cmd) {
   struct virtio_gpu_simple_resource *res, *ores;
@@ -203,7 +224,7 @@ static void virtio_gpu_set_scanout(VirtioGPU *vgpu,
 
   vgpu->enable = 1;
   if (ss.resource_id == 0) {
-    // virtio_gpu_disable_scanout(g, ss.scanout_id);
+    virtio_gpu_disable_scanout(vgpu, ss.scanout_id);
     return;
   }
 
@@ -384,7 +405,7 @@ static void virtio_gpu_resource_destroy(VirtioGPU *vgpu,
     if (res->scanout_bitmask) {
         for (uint32_t i = 0; i < vgpu->conf.max_outputs; i++) {
             if (res->scanout_bitmask & (1 << i)) {
-                // virtio_gpu_disable_scanout(g, i);
+                virtio_gpu_disable_scanout(vgpu, i);
             }
         }
     }
@@ -433,6 +454,106 @@ virtio_gpu_resource_detach_backing(VirtioGPU *vgpu,
         return;
     }
     virtio_gpu_cleanup_mapping(vgpu, res);
+}
+
+static void virtio_gpu_resource_flush(VirtioGPU *vgpu,
+                                      struct virtio_gpu_ctrl_command *cmd)
+{
+    struct virtio_gpu_simple_resource *res;
+    struct virtio_gpu_resource_flush rf;
+    pixman_region16_t flush_region;
+    int i;
+
+    VIRTIO_GPU_FILL_CMD(rf);
+    res = virtio_gpu_find_resource(vgpu, rf.resource_id);
+    if (!res) {
+        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
+        return;
+    }
+
+    if (rf.r.x > res->width ||
+        rf.r.y > res->height ||
+        rf.r.width > res->width ||
+        rf.r.height > res->height ||
+        rf.r.x + rf.r.width > res->width ||
+        rf.r.y + rf.r.height > res->height) {
+        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
+        return;
+    }
+
+    pixman_region_init_rect(&flush_region,
+                            rf.r.x, rf.r.y, rf.r.width, rf.r.height);
+    for (i = 0; i < vgpu->conf.max_outputs; i++) {
+        struct virtio_gpu_scanout *scanout;
+        pixman_region16_t region, finalregion;
+        pixman_box16_t *extents;
+
+        if (!(res->scanout_bitmask & (1 << i))) {
+            continue;
+        }
+        scanout = &vgpu->scanout[i];
+
+        pixman_region_init(&finalregion);
+        pixman_region_init_rect(&region, scanout->x, scanout->y,
+                                scanout->width, scanout->height);
+
+        pixman_region_intersect(&finalregion, &flush_region, &region);
+        pixman_region_translate(&finalregion, -scanout->x, -scanout->y);
+        extents = pixman_region_extents(&finalregion);
+        pixman_region_fini(&region);
+        pixman_region_fini(&finalregion);
+    }
+    pixman_region_fini(&flush_region);
+}
+
+
+static void virtio_gpu_transfer_to_host_2d(VirtioGPU *vgpu,
+                                           struct virtio_gpu_ctrl_command *cmd)
+{
+    struct virtio_gpu_simple_resource *res;
+    int h;
+    uint32_t src_offset, dst_offset, stride;
+    int bpp;
+    pixman_format_code_t format;
+    struct virtio_gpu_transfer_to_host_2d t2d;
+
+    VIRTIO_GPU_FILL_CMD(t2d);
+
+    res = virtio_gpu_find_resource(vgpu, t2d.resource_id);
+    if (!res || !res->iov) {
+        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
+        return;
+    }
+
+    if (t2d.r.x > res->width ||
+        t2d.r.y > res->height ||
+        t2d.r.width > res->width ||
+        t2d.r.height > res->height ||
+        t2d.r.x + t2d.r.width > res->width ||
+        t2d.r.y + t2d.r.height > res->height) {
+        cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
+        return;
+    }
+
+    format = pixman_image_get_format(res->image);
+    bpp = DIV_ROUND_UP(PIXMAN_FORMAT_BPP(format), 8);
+    stride = pixman_image_get_stride(res->image);
+
+    if (t2d.offset || t2d.r.x || t2d.r.y ||
+        t2d.r.width != pixman_image_get_width(res->image)) {
+        void *img_data = pixman_image_get_data(res->image);
+        for (h = 0; h < t2d.r.height; h++) {
+            src_offset = t2d.offset + stride * h;
+            dst_offset = (t2d.r.y + h) * stride + (t2d.r.x * bpp);
+
+            RTSGSEG_to_buf(res->iov, res->iov_cnt, src_offset, (uint8_t *)img_data + dst_offset,t2d.r.width * bpp);
+        }
+    } else {
+        RTSGSEG_from_buf(res->iov, res->iov_cnt, 0,
+                   pixman_image_get_data(res->image),
+                   pixman_image_get_stride(res->image)
+                   * pixman_image_get_height(res->image));
+    }
 }
 
 void virtioGPU_handle_ctrl(VirtioDevice *vdev, VirtQueue *vq) {
