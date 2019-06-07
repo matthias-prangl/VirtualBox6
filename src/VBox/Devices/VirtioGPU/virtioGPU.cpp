@@ -263,7 +263,7 @@ static void virtio_gpu_set_scanout(VirtioGPU *vgpu,
     pixman_image_set_destroy_function(rect, virtio_gpu_unref_resource,
                                       res->image);
     scanout->ds =
-        (DisplaySurface *)calloc(1, sizeof(struct virtio_gpu_scanout));
+        (DisplaySurface *)calloc(1, sizeof(struct DisplaySurface));
     scanout->ds->format = pixman_image_get_format(rect);
     scanout->ds->image = pixman_image_ref(rect);
     /* realloc the surface ptr */
@@ -549,7 +549,7 @@ static void virtio_gpu_transfer_to_host_2d(VirtioGPU *vgpu,
             RTSGSEG_to_buf(res->iov, res->iov_cnt, src_offset, (uint8_t *)img_data + dst_offset,t2d.r.width * bpp);
         }
     } else {
-        RTSGSEG_from_buf(res->iov, res->iov_cnt, 0,
+        RTSGSEG_to_buf(res->iov, res->iov_cnt, 0,
                    pixman_image_get_data(res->image),
                    pixman_image_get_stride(res->image)
                    * pixman_image_get_height(res->image));
