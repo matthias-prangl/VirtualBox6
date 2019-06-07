@@ -585,10 +585,10 @@ void virtioGPU_handle_ctrl(VirtioDevice *vdev, VirtQueue *vq) {
     virtio_gpu_resource_unref(vgpu, cmd);
     break;
   case VIRTIO_GPU_CMD_RESOURCE_FLUSH:
-    // virtio_gpu_resource_flush(vgpu, cmd);
+    virtio_gpu_resource_flush(vgpu, cmd);
     break;
   case VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D:
-    // virtio_gpu_transfer_to_host_2d(vgpu, cmd);
+    virtio_gpu_transfer_to_host_2d(vgpu, cmd);
     break;
   case VIRTIO_GPU_CMD_SET_SCANOUT:
     virtio_gpu_set_scanout(vgpu, cmd);
