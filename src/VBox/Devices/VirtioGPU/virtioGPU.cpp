@@ -416,8 +416,8 @@ static void virtio_gpu_resource_destroy(VirtioGPU *vgpu,
     for (auto it = vgpu->reslist.begin(); it != vgpu->reslist.end(); it++) {
       if(*it == res) {
         vgpu->reslist.erase(it);
+        vgpu->hostmem -= res->hostmem;
         break;
-    vgpu->hostmem -= res->hostmem;
       }
     }
     free(res);
