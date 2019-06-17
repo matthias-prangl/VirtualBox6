@@ -11,7 +11,7 @@ virtioGPU_SOURCES = ../VirtIOModern/virtioPCI.cpp \
 					../VirtIOModern/rtsgseg_helpers.cpp \
 					virtioGPU.cpp
 					  
-virtioGPU_LIBS = $(LIB_RUNTIME) $(LIB_VMM) C:/Users/matthias/source/cairo/Cairo-VS-master/projects/x64/Release/pixman.lib
-virtioGPU_INCS := C:/Users/matthias/source/pixman/include/pixman-1
+virtioGPU_LIBS = $(LIB_RUNTIME) $(LIB_VMM) C:/vbox_libs/pixman/pixman.lib C:/vbox_libs/SDL2-2.0.9/lib/x64/SDL2.lib
+virtioGPU_INCS := C:/vbox_libs/pixman/include C:/vbox_libs/SDL2-2.0.9/include
 
 include $(FILE_KBUILD_SUB_FOOTER)

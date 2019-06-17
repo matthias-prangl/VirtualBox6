@@ -1,5 +1,10 @@
 #include "virtioGPU.h"
 #include <iprt/mem.h>
+#include <SDL.h>
+
+SDL_Window *wndw;
+SDL_Renderer *rndr;
+SDL_Texture *tex;
 
 void virtioGPU_get_config(VirtioDevice *vdev, uint8_t *config) {
   VirtioGPU *vgpu = reinterpret_cast<VirtioGPU *>(vdev->pciDev);
@@ -500,6 +505,21 @@ static void virtio_gpu_resource_flush(VirtioGPU *vgpu,
         pixman_region_intersect(&finalregion, &flush_region, &region);
         pixman_region_translate(&finalregion, -scanout->x, -scanout->y);
         extents = pixman_region_extents(&finalregion);
+
+        SDL_Rect rect;
+        rect.x = extents->x1;
+        rect.y = extents->y1;
+        rect.w = extents->x2 - extents->x1;
+        rect.h = extents->y2 - extents->y1;
+
+        uint32_t *img_data = pixman_image_get_data(res->image);
+        int img_stride = pixman_image_get_stride(res->image);
+
+        SDL_UpdateTexture(tex, &rect, img_data, img_stride);
+        SDL_RenderClear(rndr);
+        SDL_RenderCopy(rndr, tex, NULL, NULL);
+        SDL_RenderPresent(rndr);
+        
         pixman_region_fini(&region);
         pixman_region_fini(&finalregion);
     }
@@ -626,8 +646,8 @@ void virtioGPU_default_config(struct virtio_gpu_conf *conf) {
   conf->flags = 0;
   conf->max_hostmem = 256 * 1024 * 1024;
   conf->max_outputs = 1;
-  conf->xres = 1024;
-  conf->yres = 768;
+  conf->xres = 800;
+  conf->yres = 600;
 }
 
 int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
@@ -637,7 +657,10 @@ int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   VirtioDevice *vdev = &vgpu->vdev;
   vdev->pciDev = pciDev;
   pciDev->vdev = vdev;
-
+  wndw = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600, 0);
+  rndr = SDL_CreateRenderer(wndw, -1, 0);
+  SDL_RenderSetLogicalSize(rndr, 800, 600);
+  tex = SDL_CreateTexture(rndr, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 800, 600);
   virtioGPU_default_config(&vgpu->conf);
 
   int rc =
