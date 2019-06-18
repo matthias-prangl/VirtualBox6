@@ -153,7 +153,7 @@ void virtio_gpu_resource_create_2d(VirtioGPU *vgpu,
     return;
   }
   res = static_cast<struct virtio_gpu_simple_resource *>(
-      calloc(1, sizeof(struct virtio_gpu_simple_resource)));
+      RTMemAllocZ(sizeof(struct virtio_gpu_simple_resource)));
   res->width = c2d.width;
   res->height = c2d.height;
   res->format = c2d.format;
@@ -162,7 +162,7 @@ void virtio_gpu_resource_create_2d(VirtioGPU *vgpu,
   pixman_format_code_t pformat = get_pixman_format(c2d.format);
   if (!pformat) {
     // couldn't handle guest format
-    free(res);
+    RTMemFree(res);
     cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER;
     return;
   }
@@ -173,7 +173,7 @@ void virtio_gpu_resource_create_2d(VirtioGPU *vgpu,
         pixman_image_create_bits(pformat, c2d.width, c2d.height, NULL, 0);
   }
   if (!res->image) {
-    free(res);
+    RTMemFree(res);
     cmd->error = VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY;
     return;
   }
@@ -182,6 +182,7 @@ void virtio_gpu_resource_create_2d(VirtioGPU *vgpu,
 }
 
 static void virtio_gpu_unref_resource(pixman_image_t *image, void *data) {
+  RT_NOREF1(image);
   pixman_image_unref((pixman_image_t *)data);
 }
 
@@ -193,7 +194,6 @@ static void virtio_gpu_disable_scanout(VirtioGPU *vgpu, int scanout_id)
 {
     struct virtio_gpu_scanout *scanout = &vgpu->scanout[scanout_id];
     struct virtio_gpu_simple_resource *res;
-    DisplaySurface *ds = NULL;
 
     if (scanout->resource_id == 0) {
         return;
@@ -268,7 +268,7 @@ static void virtio_gpu_set_scanout(VirtioGPU *vgpu,
     pixman_image_set_destroy_function(rect, virtio_gpu_unref_resource,
                                       res->image);
     scanout->ds =
-        (DisplaySurface *)calloc(1, sizeof(struct DisplaySurface));
+        (DisplaySurface *)RTMemAllocZ(sizeof(struct DisplaySurface));
     scanout->ds->format = pixman_image_get_format(rect);
     scanout->ds->image = pixman_image_ref(rect);
     /* realloc the surface ptr */
@@ -300,7 +300,7 @@ void virtio_gpu_cleanup_mapping_iov(VirtioGPU *vgpu, struct RTSGSEG *iov,
     PDMDevHlpPhysReleasePageMappingLock(vgpu->vdev.pciDev->pDevInsR3,
                                         &locks[i]);
   }
-  free(iov);
+  RTMemFree(iov);
 }
 
 static void virtio_gpu_cleanup_mapping(VirtioGPU *vgpu,
@@ -309,8 +309,8 @@ static void virtio_gpu_cleanup_mapping(VirtioGPU *vgpu,
     virtio_gpu_cleanup_mapping_iov(vgpu, res->iov, res->iov_cnt, res->locks);
     res->iov = NULL;
     res->iov_cnt = 0;
-    free(res->addrs);
-    free(res->locks);
+    RTMemFree(res->addrs);
+    RTMemFree(res->locks);
     res->locks = NULL;
     res->addrs = NULL;
 }
@@ -329,21 +329,21 @@ int virtio_gpu_create_mapping_iov(VirtioGPU *vgpu,
   }
 
   esize = sizeof(*ents) * ab->nr_entries;
-  ents = reinterpret_cast<virtio_gpu_mem_entry *>(calloc(1, esize));
+  ents = reinterpret_cast<virtio_gpu_mem_entry *>(RTMemAllocZ(esize));
   s = RTSGSEG_to_buf(cmd->elem.out_sg, cmd->elem.out_num, sizeof(*ab), ents,
                      esize);
   if (s != esize) {
     // command data size incorrect
-    free(ents);
+    RTMemFree(ents);
     return -1;
   }
 
-  *iov = (RTSGSEG *)calloc(ab->nr_entries, sizeof(struct RTSGSEG));
+  *iov = (RTSGSEG *)RTMemAllocZ(ab->nr_entries * sizeof(struct RTSGSEG));
   if (addr) {
-    *addr = (uint64_t *)calloc(ab->nr_entries, sizeof(uint64_t));
+    *addr = (uint64_t *)RTMemAllocZ(ab->nr_entries * sizeof(uint64_t));
   }
 
-  *locks = (PGMPAGEMAPLOCK *)calloc(ab->nr_entries, sizeof(PGMPAGEMAPLOCK));
+  *locks = (PGMPAGEMAPLOCK *)RTMemAllocZ(ab->nr_entries * sizeof(PGMPAGEMAPLOCK));
 
   for (uint32_t i = 0; i < ab->nr_entries; i++) {
     uint64_t a = RT_LE2H_U64(ents[i].addr);
@@ -360,16 +360,16 @@ int virtio_gpu_create_mapping_iov(VirtioGPU *vgpu,
     if (!(*iov)[i].pvSeg || len != l) {
       // failed to map MMIO memory for element
       virtio_gpu_cleanup_mapping_iov(vgpu, *iov, i, *locks);
-      free(ents);
+      RTMemFree(ents);
       *iov = NULL;
       if (addr) {
-        free(*addr);
+        RTMemFree(*addr);
         *addr = NULL;
       }
       return -1;
     }
   }
-  free(ents);
+  RTMemFree(ents);
   return 0;
 }
 
@@ -425,7 +425,7 @@ static void virtio_gpu_resource_destroy(VirtioGPU *vgpu,
         break;
       }
     }
-    free(res);
+    RTMemFree(res);
 }
 
 static void virtio_gpu_resource_unref(VirtioGPU *vgpu,
@@ -631,7 +631,7 @@ void virtioGPU_handle_ctrl(VirtioDevice *vdev, VirtQueue *vq) {
       
     virtio_gpu_ctrl_response_nodata(vgpu, cmd, type);
   }
-  free(cmd);
+  RTMemFree(cmd);
 }
 
 void virtioGPU_handle_cursor(VirtioDevice *vdev, VirtQueue *vq) {
@@ -639,7 +639,7 @@ void virtioGPU_handle_cursor(VirtioDevice *vdev, VirtQueue *vq) {
       virtqueue_pop(vq, sizeof(VirtQueueElement)));
   virtqueue_push(vq, vqe, 0);
   virtio_notify(vdev, vq);
-  free(vqe);
+  RTMemFree(vqe);
 }
 
 void virtioGPU_default_config(struct virtio_gpu_conf *conf) {
@@ -657,6 +657,8 @@ int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   VirtioDevice *vdev = &vgpu->vdev;
   vdev->pciDev = pciDev;
   pciDev->vdev = vdev;
+
+  SDL_InitSubSystem(SDL_INIT_VIDEO);
   wndw = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600, 0);
   rndr = SDL_CreateRenderer(wndw, -1, 0);
   SDL_RenderSetLogicalSize(rndr, 800, 600);
@@ -676,7 +678,7 @@ int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   vdev->set_features = virtioGPU_set_features;
   vdev->reset = virtioGPU_reset;
   vdev->config_len = sizeof(struct virtio_gpu_config);
-  vdev->config = calloc(1, sizeof(struct virtio_gpu_config));
+  vdev->config = RTMemAllocZ(sizeof(struct virtio_gpu_config));
   if (!vdev->config) {
     rc = VERR_NO_MEMORY;
   }
@@ -706,6 +708,7 @@ int virtioGPUDestruct(PPDMDEVINS pDevIns) {
   if(RTCritSectIsInitialized(&vgpu->vdev.critsect)) {
     RTCritSectDelete(&vgpu->vdev.critsect);
   }
+  SDL_Quit();
   return VINF_SUCCESS;
 }
 

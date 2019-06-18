@@ -2,6 +2,7 @@
 #include "virtioPCI.h"
 #include <errno.h>
 #include <iprt/assert.h>
+#include <iprt/mem.h>
 
 VirtQueue *virtio_add_queue(VirtioDevice *vdev, uint32_t queue_size,
                             VirtioHandleQueue handle_queue) {
@@ -332,7 +333,7 @@ void *virtqueue_pop(VirtQueue *vq, size_t sz) {
     vring_desc_read(vq, &desc, i);
   }
 
-  vqe = (VirtQueueElement *)calloc(1, sz);
+  vqe = (VirtQueueElement *)RTMemAllocZ(sz);
 
   do {
     RTSGSEG *sg;
