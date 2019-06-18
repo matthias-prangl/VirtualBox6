@@ -512,8 +512,9 @@ static void virtio_gpu_resource_flush(VirtioGPU *vgpu,
         rect.w = extents->x2 - extents->x1;
         rect.h = extents->y2 - extents->y1;
 
-        uint32_t *img_data = pixman_image_get_data(res->image);
         int img_stride = pixman_image_get_stride(res->image);
+        size_t surface_data_offset = DIV_ROUND_UP(PIXMAN_FORMAT_BPP(pixman_image_get_format(res->image)), 8) * rect.x + img_stride * rect.y;
+        void *img_data = reinterpret_cast<uint8_t *>(pixman_image_get_data(res->image)) + surface_data_offset;
 
         SDL_UpdateTexture(tex, &rect, img_data, img_stride);
         SDL_RenderClear(rndr);
