@@ -12,12 +12,12 @@ void handle_q1(VirtioDevice *vdev, VirtQueue *vq) {
   VirtQueueElement *vqe =
       (VirtQueueElement *)virtqueue_pop(vq, sizeof(VirtQueueElement));
   if (vqe) {
-    rcv_bufs[rcv_count] = calloc(1, vqe->out_sg[0].cbSeg);
+    rcv_bufs[rcv_count] = RTMemAllocZ(vqe->out_sg[0].cbSeg);
     RTSGSEG_to_buf(vqe->out_sg, vqe->out_num, 0, rcv_bufs[rcv_count++],
                    vqe->out_sg->cbSeg);
     virtqueue_push(vq, vqe, 0);
     virtio_notify(vdev, vq);
-    free(vqe);
+    RTMemFree(vqe);
   }
   return;
 }
@@ -32,8 +32,8 @@ void handle_q2(VirtioDevice *vdev, VirtQueue *vq) {
 
     virtqueue_push(vq, vqe, static_cast<unsigned int>(len));
     virtio_notify(vdev, vq);
-    free(rcv_bufs[rcv_count]);
-    free(vqe);
+    RTMemFree(rcv_bufs[rcv_count]);
+    RTMemFree(vqe);
   }
   return;
 }
@@ -71,6 +71,8 @@ virtioexampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   if (!vdev->config) {
     rc = VERR_NO_MEMORY;
   }
+
+  RTCritSectInit(&vdev->critsect);
   vdev->set_config = virtioexample_set_config;
   vdev->get_config = virtioexample_get_config;
   vdev->virtio_notify_bus = virtioPCINotify;

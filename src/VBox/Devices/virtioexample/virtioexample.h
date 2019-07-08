@@ -6,7 +6,7 @@
 #include <VBox/vmm/pdmdev.h>
 
 #define VIRTIOEXAMPLE_NAME_FMT "virtioexample%d"
-#define VIRTIOEXAMPLE_PCI_CLASS 0x0300
+#define VIRTIOEXAMPLE_PCI_CLASS 0x0000
 #define VIRTIOEXAMPLE_ID 21
 #define VIRTIOEXAMPLE_N_QUEUES 2
 
