@@ -58,7 +58,9 @@ virtioexampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   pciDev->vdev = vdev;
 
   int rc =
-      PDMDevHlpSetDeviceCritSect(pDevIns, PDMDevHlpCritSectGetNop(pDevIns));
+      PDMDevHlpCritSectInit(pDevIns, &vdev->critsect, RT_SRC_POS, "vex");
+  AssertRCReturn(rc, rc);
+  rc = PDMDevHlpSetDeviceCritSect(pDevIns, &vdev->critsect);
   AssertRCReturn(rc, rc);
   rc = virtioPCIConstruct(pDevIns, pciDev, iInstance, VIRTIOEXAMPLE_NAME_FMT,
                           VIRTIOEXAMPLE_ID, VIRTIOEXAMPLE_PCI_CLASS,
@@ -72,7 +74,6 @@ virtioexampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
     rc = VERR_NO_MEMORY;
   }
 
-  RTCritSectInit(&vdev->critsect);
   vdev->set_config = virtioexample_set_config;
   vdev->get_config = virtioexample_get_config;
   vdev->virtio_notify_bus = virtioPCINotify;
@@ -81,7 +82,6 @@ virtioexampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   
   for (int i = 0; i < VIRTIO_QUEUE_MAX; i++) {
     vdev->vq[i].vdev = vdev;
-    vdev->vq[i].queue_idx = i;
   }
 
   pThis->vq1 = virtio_add_queue(&pThis->vdev, 256, &handle_q1);

@@ -667,7 +667,10 @@ int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   virtioGPU_default_config(&vgpu->conf);
 
   int rc =
-      PDMDevHlpSetDeviceCritSect(pDevIns, PDMDevHlpCritSectGetNop(pDevIns));
+      PDMDevHlpCritSectInit(pDevIns, &vdev->critsect, RT_SRC_POS, "vgpu");
+  AssertRCReturn(rc, rc);
+  rc = PDMDevHlpSetDeviceCritSect(pDevIns, &vdev->critsect);
+  AssertRCReturn(rc, rc);
   AssertRCReturn(rc, rc);
   virtioPCIConstruct(pDevIns, pciDev, iInstance, VIRTIOGPU_NAME_FMT,
                      VIRTIOGPU_ID, VIRTIOGPU_PCI_CLASS, VIRTIOGPU_N_QUEUES);
@@ -683,7 +686,6 @@ int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   if (!vdev->config) {
     rc = VERR_NO_MEMORY;
   }
-  RTCritSectInit(&vdev->critsect);
 
   vgpu->virtio_config.num_scanouts = RT_H2LE_U32(vgpu->conf.max_outputs);
   vgpu->virtio_config.num_capsets = 0;
@@ -691,7 +693,6 @@ int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   vgpu->req_state[0].height = vgpu->conf.yres;
   for (int i = 0; i < VIRTIO_QUEUE_MAX; i++) {
     vdev->vq[i].vdev = vdev;
-    vdev->vq[i].queue_idx = i;
   }
 
   vgpu->ctrl_vq = virtio_add_queue(vdev, 64, virtioGPU_handle_ctrl);
@@ -706,8 +707,8 @@ int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
 int virtioGPUDestruct(PPDMDEVINS pDevIns) {
   VirtioGPU *vgpu = PDMINS_2_DATA(pDevIns, VirtioGPU *);
   virtioPCIUnmap(&vgpu->pciDev);
-  if(RTCritSectIsInitialized(&vgpu->vdev.critsect)) {
-    RTCritSectDelete(&vgpu->vdev.critsect);
+  if(PDMCritSectIsInitialized(&vgpu->vdev.critsect)) {
+    PDMR3CritSectDelete(&vgpu->vdev.critsect);
   }
   SDL_Quit();
   return VINF_SUCCESS;

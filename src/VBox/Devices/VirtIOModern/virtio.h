@@ -90,10 +90,6 @@ typedef struct VirtQueue {
   uint16_t last_avail_idx;
   uint16_t shadow_avail_idx;
   uint16_t used_idx;
-  uint16_t signalled_used;
-  bool signalled_used_valid;
-  bool notification;
-  uint16_t queue_idx;
   uint32_t inuse;
   VirtioDevice *vdev;
   VirtioHandleQueue handle_queue;
@@ -101,23 +97,16 @@ typedef struct VirtQueue {
 
 typedef struct VirtioDevice {
   VirtioPCIDevice *pciDev;
-  //Should probably use PDMCRITSECT if this ends up working
-  RTCRITSECT critsect;
-  const char *name;
+  PDMCRITSECT critsect;
   uint8_t status;
   uint8_t isr;
   uint16_t queue_select;
   uint64_t guest_features;
   uint64_t host_features;
-  uint64_t backend_features;
   size_t config_len;
   void *config;
   uint32_t generation;
   VirtQueue vq[VIRTIO_QUEUE_MAX];
-  uint16_t device_id;
-  bool vm_running;
-  bool broken;
-  uint8_t device_endian;
   void (*virtio_notify_bus)(VirtioDevice *pciDev);
   void (*reset)(VirtioDevice *vdev);
   void (*get_config)(VirtioDevice *vdev, uint8_t *config);
