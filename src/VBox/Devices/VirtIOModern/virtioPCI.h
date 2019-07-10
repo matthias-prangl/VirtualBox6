@@ -93,32 +93,10 @@ typedef struct VirtioDevice VirtioDevice;
  *
  */
 typedef struct VirtioPCIDevice {
-  PDMCRITSECT cs; /**< Critical section - what is it protecting? */
-  /* Read-only part, never changes after initialization. */
-  char szInstance[8]; /**< Instance name, e.g. VNet#1. */
-
-#if HC_ARCH_BITS != 64
-  uint32_t padding1;
-#endif
-
-  /** Status LUN: Base interface. */
-  PDMIBASE IBase;
-
   PPDMDEVINSR3 pDevInsR3; /**< Device instance - R3. */
-  PPDMDEVINSR0 pDevInsR0; /**< Device instance - R0. */
-  PPDMDEVINSRC pDevInsRC; /**< Device instance - RC. */
 
-#if HC_ARCH_BITS == 64
-  uint32_t padding2;
-#endif
-
-  /** TODO */
   PDMPCIDEV pciDevice;
   RTGCPHYS mmioRegion;
-
-#if HC_ARCH_BITS != 64
-  uint32_t padding3;
-#endif
 
   uint32_t device_feature_select;
   uint32_t device_feature;
@@ -144,9 +122,7 @@ virtioPCIConfigure(PDMPCIDEV &pci, uint16_t uDeviceId, uint16_t uClass);
 void virtioPCISetCapabilityList(PPDMPCIDEV pci, uint8_t cap_base);
 
 int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIDevice *vpciDev,
-                       int iInstance, const char *pcszNameFmt,
                        uint16_t uDeviceId, uint16_t uClass, uint32_t nQueues);
-int virtioPCIDestruct(VirtioPCIDevice *vpciDev);
 void virtioPCIReset(VirtioPCIDevice *vpciDev);
 
 DECLCALLBACK(int)

@@ -257,27 +257,14 @@ void virtioPCIReset(VirtioPCIDevice *vpciDev) {
  * @param   nQueues      Number of VirtQueues this device uses.
  */
 int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIDevice *vpciDev,
-                       int iInstance, const char *pcszNameFmt,
                        uint16_t uDeviceId, uint16_t uClass, uint32_t nQueues) {
-  /* Init handles and log related stuff. */
-  RTStrPrintf(vpciDev->szInstance, sizeof(vpciDev->szInstance), pcszNameFmt,
-              iInstance);
-
   vpciDev->pDevInsR3 = pDevIns;
-  vpciDev->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
-  vpciDev->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
-
-  /* Initialize critical section. */
-  int rc = PDMDevHlpCritSectInit(pDevIns, &vpciDev->cs, RT_SRC_POS, "%s",
-                                 vpciDev->szInstance);
-  if (RT_FAILURE(rc))
-    return rc;
 
   /* Set PCI config registers */
   virtioPCIConfigure(vpciDev->pciDevice, uDeviceId, uClass);
   virtioPCISetCapabilityList(&vpciDev->pciDevice, CAP_BASE);
   /* Register PCI device */
-  rc = PDMDevHlpPCIRegister(pDevIns, &vpciDev->pciDevice);
+  int rc = PDMDevHlpPCIRegister(pDevIns, &vpciDev->pciDevice);
   if (RT_FAILURE(rc))
     return rc;
   /* Register required MMIO Regions */
@@ -288,34 +275,13 @@ int virtioPCIConstruct(PPDMDEVINS pDevIns, VirtioPCIDevice *vpciDev,
   if (RT_FAILURE(rc))
     return rc;
 
-  /* Status driver */
-  PPDMIBASE pBase;
   vpciDev->num_queues = nQueues;
   virtio_add_feature(&vpciDev->vdev->host_features, VIRTIO_F_VERSION_1);
-  rc = PDMDevHlpDriverAttach(pDevIns, PDM_STATUS_LUN, &vpciDev->IBase, &pBase,
-                             "Status Port");
 
   if (RT_FAILURE(rc))
     return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to attach the status LUN"));
 
   return rc;
-}
-
-/**
- * Destruct PCI-related part of device.
- *
- * We need to free non-VM resources only.
- *
- * @returns VBox status code.
- * @param   vpciDev      The device state structure.
- */
-int virtioPCIDestruct(VirtioPCIDevice *vpciDev) {
-  Log(("%s Destroying PCI instance\n", vpciDev->szInstance));
-
-  if (PDMCritSectIsInitialized(&vpciDev->cs))
-    PDMR3CritSectDelete(&vpciDev->cs);
-
-  return VINF_SUCCESS;
 }
 
 DECLCALLBACK(int)

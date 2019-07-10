@@ -132,17 +132,6 @@ static uint16_t vring_avail_idx(VirtQueue *vq) {
   return vq->shadow_avail_idx;
 }
 
-static int virtqueue_num_heads(VirtQueue *vq, unsigned int idx) {
-  uint16_t num_heads = vring_avail_idx(vq) - idx;
-  if (num_heads > vq->vring.num) {
-    return -1;
-  }
-  if (num_heads) {
-    RT_UNTRUSTED_VALIDATED_FENCE();
-  }
-  return num_heads;
-}
-
 /**
  * Read the i-th availiable ring of the VirtQueue
  *

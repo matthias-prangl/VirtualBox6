@@ -62,7 +62,7 @@ virtioexampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   AssertRCReturn(rc, rc);
   rc = PDMDevHlpSetDeviceCritSect(pDevIns, &vdev->critsect);
   AssertRCReturn(rc, rc);
-  rc = virtioPCIConstruct(pDevIns, pciDev, iInstance, VIRTIOEXAMPLE_NAME_FMT,
+  rc = virtioPCIConstruct(pDevIns, pciDev,
                           VIRTIOEXAMPLE_ID, VIRTIOEXAMPLE_PCI_CLASS,
                           VIRTIOEXAMPLE_N_QUEUES);
   // Last call fails because there is no LUN, ignore for the time being
@@ -87,7 +87,7 @@ virtioexampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   pThis->vq1 = virtio_add_queue(&pThis->vdev, 256, &handle_q1);
   pThis->vq2 = virtio_add_queue(&pThis->vdev, 256, &handle_q2);
 
-  RT_NOREF(pCfg);
+  RT_NOREF(pCfg, iInstance);
   return rc;
 }
 

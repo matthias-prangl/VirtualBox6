@@ -467,7 +467,6 @@ static void virtio_gpu_resource_flush(VirtioGPU *vgpu,
     struct virtio_gpu_simple_resource *res;
     struct virtio_gpu_resource_flush rf;
     pixman_region16_t flush_region;
-    int i;
 
     VIRTIO_GPU_FILL_CMD(rf);
     res = virtio_gpu_find_resource(vgpu, rf.resource_id);
@@ -488,7 +487,7 @@ static void virtio_gpu_resource_flush(VirtioGPU *vgpu,
 
     pixman_region_init_rect(&flush_region,
                             rf.r.x, rf.r.y, rf.r.width, rf.r.height);
-    for (i = 0; i < vgpu->conf.max_outputs; i++) {
+    for (unsigned int i = 0; i < vgpu->conf.max_outputs; i++) {
         struct virtio_gpu_scanout *scanout;
         pixman_region16_t region, finalregion;
         pixman_box16_t *extents;
@@ -516,6 +515,7 @@ static void virtio_gpu_resource_flush(VirtioGPU *vgpu,
         size_t surface_data_offset = DIV_ROUND_UP(PIXMAN_FORMAT_BPP(pixman_image_get_format(res->image)), 8) * rect.x + img_stride * rect.y;
         void *img_data = reinterpret_cast<uint8_t *>(pixman_image_get_data(res->image)) + surface_data_offset;
 
+        SDL_PollEvent(0);
         SDL_UpdateTexture(tex, &rect, img_data, img_stride);
         SDL_RenderClear(rndr);
         SDL_RenderCopy(rndr, tex, NULL, NULL);
@@ -525,6 +525,7 @@ static void virtio_gpu_resource_flush(VirtioGPU *vgpu,
         pixman_region_fini(&finalregion);
     }
     pixman_region_fini(&flush_region);
+    
 }
 
 
@@ -532,7 +533,6 @@ static void virtio_gpu_transfer_to_host_2d(VirtioGPU *vgpu,
                                            struct virtio_gpu_ctrl_command *cmd)
 {
     struct virtio_gpu_simple_resource *res;
-    int h;
     uint32_t src_offset, dst_offset, stride;
     int bpp;
     pixman_format_code_t format;
@@ -561,9 +561,9 @@ static void virtio_gpu_transfer_to_host_2d(VirtioGPU *vgpu,
     stride = pixman_image_get_stride(res->image);
 
     if (t2d.offset || t2d.r.x || t2d.r.y ||
-        t2d.r.width != pixman_image_get_width(res->image)) {
+        t2d.r.width != (uint32_t) pixman_image_get_width(res->image)) {
         void *img_data = pixman_image_get_data(res->image);
-        for (h = 0; h < t2d.r.height; h++) {
+        for (unsigned int h = 0; h < t2d.r.height; h++) {
             src_offset = t2d.offset + stride * h;
             dst_offset = (t2d.r.y + h) * stride + (t2d.r.x * bpp);
 
@@ -659,11 +659,6 @@ int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   vdev->pciDev = pciDev;
   pciDev->vdev = vdev;
 
-  SDL_InitSubSystem(SDL_INIT_VIDEO);
-  wndw = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600, 0);
-  rndr = SDL_CreateRenderer(wndw, -1, 0);
-  SDL_RenderSetLogicalSize(rndr, 800, 600);
-  tex = SDL_CreateTexture(rndr, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 800, 600);
   virtioGPU_default_config(&vgpu->conf);
 
   int rc =
@@ -672,7 +667,7 @@ int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   rc = PDMDevHlpSetDeviceCritSect(pDevIns, &vdev->critsect);
   AssertRCReturn(rc, rc);
   AssertRCReturn(rc, rc);
-  virtioPCIConstruct(pDevIns, pciDev, iInstance, VIRTIOGPU_NAME_FMT,
+  virtioPCIConstruct(pDevIns, pciDev,
                      VIRTIOGPU_ID, VIRTIOGPU_PCI_CLASS, VIRTIOGPU_N_QUEUES);
 
   vdev->virtio_notify_bus = virtioPCINotify;
@@ -691,16 +686,25 @@ int virtioGPUConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg) {
   vgpu->virtio_config.num_capsets = 0;
   vgpu->req_state[0].width = vgpu->conf.xres;
   vgpu->req_state[0].height = vgpu->conf.yres;
+
   for (int i = 0; i < VIRTIO_QUEUE_MAX; i++) {
     vdev->vq[i].vdev = vdev;
   }
 
   vgpu->ctrl_vq = virtio_add_queue(vdev, 64, virtioGPU_handle_ctrl);
   vgpu->cursor_vq = virtio_add_queue(vdev, 16, virtioGPU_handle_cursor);
-
   vgpu->enabled_output_bitmask = 1;
 
-  RT_NOREF(pCfg);
+  SDL_InitSubSystem(SDL_INIT_VIDEO);
+  wndw = SDL_CreateWindow("", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, vgpu->conf.xres, vgpu->conf.yres, 0);
+  rndr = SDL_CreateRenderer(wndw, -1, 0);
+  SDL_RenderSetLogicalSize(rndr, vgpu->conf.xres, vgpu->conf.yres);
+  tex = SDL_CreateTexture(rndr, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, vgpu->conf.xres, vgpu->conf.yres);
+  SDL_RenderClear(rndr);
+  SDL_RenderCopy(rndr, tex, NULL, NULL);
+  SDL_RenderPresent(rndr);
+
+  RT_NOREF(pCfg, iInstance);
   return rc;
 }
 
