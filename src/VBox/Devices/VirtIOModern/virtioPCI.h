@@ -132,9 +132,6 @@ DECLCALLBACK(int)
 virtioPCICommonCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                        void *pv, unsigned cb);
 DECLCALLBACK(int)
-virtioPCIISRWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
-                  void const *pv, unsigned cb);
-DECLCALLBACK(int)
 virtioPCIISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                  void *pv, unsigned cb);
 DECLCALLBACK(int)
@@ -146,9 +143,6 @@ virtioPCIDeviceCfgRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
 DECLCALLBACK(int)
 virtioPCINotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                      void const *pv, unsigned cb);
-DECLCALLBACK(int)
-virtioPCINotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
-                    void *pv, unsigned cb);
 
 void virtioPCINotify(VirtioDevice *vdev);
 

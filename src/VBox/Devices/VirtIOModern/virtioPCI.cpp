@@ -102,13 +102,6 @@ virtioPCIConfigure(PDMPCIDEV &pci, uint16_t uDeviceId, uint16_t uClass) {
 }
 
 DECLCALLBACK(int)
-virtioPCIISRWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
-                  void const *pv, unsigned cb) {
-  RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
-  return VINF_SUCCESS;
-}
-
-DECLCALLBACK(int)
 virtioPCIISRRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
                  void *pv, unsigned cb) {
   VirtioPCIDevice *vpciDev = PDMINS_2_DATA(pDevIns, VirtioPCIDevice *);
@@ -135,10 +128,10 @@ virtioPCIDeviceCfgWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
     virtio_config_modern_writeb(vdev, addr, write_data);
     break;
   case 2:
-    virtio_config_modern_writeb(vdev, addr, write_data);
+    virtio_config_modern_writew(vdev, addr, write_data);
     break;
   case 4:
-    virtio_config_modern_writeb(vdev, addr, write_data);
+    virtio_config_modern_writel(vdev, addr, write_data);
     break;
   default:
     break;
@@ -191,13 +184,6 @@ virtioPCINotifyWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
 }
 
 DECLCALLBACK(int)
-virtioPCINotifyRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr,
-                    void *pv, unsigned cb) {
-  RT_NOREF(pDevIns, pvUser, GCPhysAddr, pv, cb);
-  return VINF_SUCCESS;
-}
-
-DECLCALLBACK(int)
 virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
              RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType) {
   VirtioPCIDevice *vpciDev = PDMINS_2_DATA(pDevIns, VirtioPCIDevice *);
@@ -209,7 +195,7 @@ virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
   Assert(rc == VINF_SUCCESS);
 
   rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress + 0x1000, 0x1000, NULL, 0,
-                             virtioPCIISRWrite, virtioPCIISRRead,
+                             0, virtioPCIISRRead,
                              "VirtioPCIISR");
   Assert(rc == VINF_SUCCESS);
 
@@ -219,7 +205,7 @@ virtioPCIMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
   Assert(rc == VINF_SUCCESS);
 
   rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress + 0x3000, 0x1000, NULL, 0,
-                             virtioPCINotifyWrite, virtioPCINotifyRead,
+                             virtioPCINotifyWrite, 0,
                              "VirtioPCINotify");
   Assert(rc == VINF_SUCCESS);
   RT_NOREF(enmType, cb, iRegion, pPciDev);

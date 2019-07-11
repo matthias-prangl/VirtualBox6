@@ -7747,7 +7747,7 @@ if defined(VBOX_JAVA_VERSION) && $(VBOX_JAVA_VERSION) >= 10900
  VBOX_JAVA_WS_OPTS ?= --add-modules java.xml.ws
 endif
 if defined(VBOX_JAVA_VERSION) && $(VBOX_JAVA_VERSION) >= 100000
- VBOX_JAVAC_OPTS   = -encoding UTF-8 -source 6 -target 6 -Xlint:unchecked
+ VBOX_JAVAC_OPTS   = -encoding UTF-8 -source 7 -target 7 -Xlint:unchecked
 else
  VBOX_JAVAC_OPTS   = -encoding UTF-8 -source 1.5 -target 1.5 -Xlint:unchecked
 endif
